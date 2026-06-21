@@ -1,0 +1,16 @@
+{
+  "hr-management": "人力资源管理",
+  "dashboard": "仪表板",
+  "employees": "员工",
+  "employee-list": "员工列表",
+  "employee-profile": "员工档案",
+  "leaves": "假期",
+  "attendance": "考勤",
+  "departments": "部门",
+  "payroll": "薪资",
+  "recruitment": "招聘",
+  "maintenance": "维护",
+  "error": "错误",
+  "coming-soon": "即将推出",
+  "offline-ui": "离线界面"
+}

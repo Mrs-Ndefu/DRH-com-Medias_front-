@@ -1,0 +1,29 @@
+{
+  "brandName": "RH Manager",
+  "title": "Application de Gestion des Ressources Humaines",
+  "Docs": "",
+  "changeLog": "",
+  "company": {
+    "name": "",
+    "url": "",
+    "support": "",
+    "privacyPolicy": "",
+    "license": "",
+    "socialLink": {
+      "linkedin": "",
+      "twitter": "",
+      "instagram": "",
+      "facebook": "",
+      "youtube": "",
+      "github": "",
+      "dribble": "",
+      "discord": ""
+    }
+  },
+  "logo": {
+    "main": "",
+    "logoIcon": "",
+    "logoFab": "",
+    "logoWatermark": ""
+  }
+}
