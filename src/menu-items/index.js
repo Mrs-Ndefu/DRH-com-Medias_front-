@@ -52,9 +52,15 @@ const hr = {
     {
       id: 'payroll',
       title: 'payroll',
-      type: 'item',
-      url: '/payroll',
-      icon: 'ph ph-money'
+      type: 'collapse',
+      icon: 'ph ph-money',
+      children: [
+        { id: 'pay-apercu',       title: 'pay-apercu',       type: 'item', url: '/payroll'                       },
+        { id: 'pay-bulletins',    title: 'pay-bulletins',    type: 'item', url: '/payroll?tab=bulletins'         },
+        { id: 'pay-elements',     title: 'pay-elements',     type: 'item', url: '/payroll?tab=elements'          },
+        { id: 'pay-virements',    title: 'pay-virements',    type: 'item', url: '/payroll?tab=virements'         },
+        { id: 'pay-declarations', title: 'pay-declarations', type: 'item', url: '/payroll?tab=declarations'      }
+      ]
     },
     {
       id: 'recruitment',
