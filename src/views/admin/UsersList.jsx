@@ -1,28 +1,29 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 
-import Badge from 'react-bootstrap/Badge';
-import Button from 'react-bootstrap/Button';
-import Col from 'react-bootstrap/Col';
-import Form from 'react-bootstrap/Form';
-import Modal from 'react-bootstrap/Modal';
-import Row from 'react-bootstrap/Row';
+import Badge   from 'react-bootstrap/Badge';
+import Button  from 'react-bootstrap/Button';
+import Col     from 'react-bootstrap/Col';
+import Form    from 'react-bootstrap/Form';
+import Modal   from 'react-bootstrap/Modal';
+import Row     from 'react-bootstrap/Row';
 import Spinner from 'react-bootstrap/Spinner';
-import Table from 'react-bootstrap/Table';
+import Table   from 'react-bootstrap/Table';
 
 import MainCard from 'components/MainCard';
 import { fetcher, api } from 'api/client';
 import { useAuth } from 'contexts/AuthContext';
 
-const USERS_KEY = '/users';
+const USERS_KEY  = '/users';
+const API_BASE   = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
 
 const ROLE_LABELS = {
-  ADMIN:      { label: 'Administrateur',     color: 'danger'   },
-  DRH:        { label: 'Directeur RH',       color: 'primary'  },
-  SUPER_USER: { label: 'Super Utilisateur',  color: 'warning'  },
-  RH:         { label: 'Agent RH',           color: 'info'     },
-  CHEF:       { label: 'Chef de service',    color: 'secondary'},
-  SG:         { label: 'Secrétaire Général', color: 'success'  },
+  ADMIN:      { label: 'Administrateur',     color: 'danger'    },
+  DRH:        { label: 'Directeur RH',       color: 'primary'   },
+  SUPER_USER: { label: 'Super Utilisateur',  color: 'warning'   },
+  RH:         { label: 'Agent RH',           color: 'info'      },
+  CHEF:       { label: 'Chef de service',    color: 'secondary' },
+  SG:         { label: 'Secrétaire Général', color: 'success'   },
 };
 
 const ALL_ROLES = Object.keys(ROLE_LABELS);
@@ -32,35 +33,72 @@ function RoleBadge({ role }) {
   return <Badge bg={r.color}>{r.label}</Badge>;
 }
 
+function Avatar({ user, size = 34 }) {
+  const src = user.photo ? `${API_BASE}${user.photo}` : null;
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={`${user.prenom} ${user.nom}`}
+        className="rounded-circle object-fit-cover"
+        style={{ width: size, height: size, flexShrink: 0 }}
+        onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    >
+      {(user.prenom?.[0] || '').toUpperCase()}{(user.nom?.[0] || '').toUpperCase()}
+    </div>
+  );
+}
+
 const BLANK_CREATE = { prenom: '', nom: '', email: '', role: 'RH', password: '', confirm: '' };
+
+async function uploadPhoto(userId, file) {
+  const token = localStorage.getItem('sirh_token');
+  const fd = new FormData();
+  fd.append('photo', file);
+  const res = await fetch(
+    `${API_BASE}/api/users/${userId}/photo`,
+    { method: 'PATCH', headers: { Authorization: `Bearer ${token}` }, body: fd }
+  );
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.message || 'Erreur upload photo');
+  }
+  return res.json();
+}
 
 export default function UsersList() {
   const { user: currentUser } = useAuth();
   const { data: raw, isLoading, error } = useSWR(USERS_KEY, fetcher);
   const users = raw?.data || [];
 
-  const [editUser,    setEditUser]    = useState(null);
-  const [editForm,    setEditForm]    = useState({ role: '', actif: true });
-  const [delUser,     setDelUser]     = useState(null);
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [createForm,  setCreateForm]  = useState(BLANK_CREATE);
-  const [showPwd,     setShowPwd]     = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [alert,       setAlert]       = useState(null);
+  const [editUser,     setEditUser]     = useState(null);
+  const [editForm,     setEditForm]     = useState({ role: '', actif: true });
+  const [delUser,      setDelUser]      = useState(null);
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [createForm,   setCreateForm]   = useState(BLANK_CREATE);
+  const [photoFile,    setPhotoFile]    = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [showPwd,      setShowPwd]      = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [alert,        setAlert]        = useState(null);
+  const photoInputRef = useRef(null);
 
   const refresh = () => mutate(USERS_KEY);
 
-  const openEdit = (u) => {
-    setEditUser(u);
-    setEditForm({ role: u.role, actif: u.actif });
-  };
+  const openEdit = (u) => { setEditUser(u); setEditForm({ role: u.role, actif: u.actif }); };
 
   const saveEdit = async () => {
     setSaving(true);
     try {
       await api.patch(`/users/${editUser.id}`, editForm);
-      refresh();
-      setEditUser(null);
+      refresh(); setEditUser(null);
       setAlert({ type: 'success', msg: 'Utilisateur modifié.' });
     } catch (e) {
       setAlert({ type: 'danger', msg: e.message || 'Erreur.' });
@@ -71,8 +109,7 @@ export default function UsersList() {
     setSaving(true);
     try {
       await api.delete(`/users/${delUser.id}`);
-      refresh();
-      setDelUser(null);
+      refresh(); setDelUser(null);
       setAlert({ type: 'success', msg: 'Utilisateur supprimé.' });
     } catch (e) {
       setAlert({ type: 'danger', msg: e.message || 'Erreur.' });
@@ -88,7 +125,22 @@ export default function UsersList() {
     }
   };
 
-  const openCreate = () => { setCreateForm(BLANK_CREATE); setShowPwd(false); setShowCreate(true); };
+  const openCreate = () => {
+    setCreateForm(BLANK_CREATE);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setShowPwd(false);
+    setShowCreate(true);
+  };
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const submitCreate = async () => {
     if (!createForm.prenom || !createForm.nom || !createForm.email || !createForm.password) {
@@ -102,13 +154,13 @@ export default function UsersList() {
     }
     setSaving(true);
     try {
-      await api.post('/auth/register', {
-        prenom:   createForm.prenom,
-        nom:      createForm.nom,
-        email:    createForm.email,
-        role:     createForm.role,
-        password: createForm.password,
+      const res = await api.post('/auth/register', {
+        prenom: createForm.prenom, nom: createForm.nom,
+        email: createForm.email, role: createForm.role, password: createForm.password,
       });
+      if (photoFile && res.user?.id) {
+        await uploadPhoto(res.user.id, photoFile).catch(() => {});
+      }
       refresh();
       setShowCreate(false);
       setAlert({ type: 'success', msg: `Compte créé pour ${createForm.prenom} ${createForm.nom}.` });
@@ -147,10 +199,10 @@ export default function UsersList() {
           {/* ── KPIs ── */}
           <Row className="g-3 mb-4">
             {[
-              { label: 'Total utilisateurs', value: users.length,                               color: 'primary' },
-              { label: 'Actifs',             value: users.filter(u => u.actif).length,           color: 'success' },
-              { label: 'Inactifs',           value: users.filter(u => !u.actif).length,          color: 'secondary'},
-              { label: 'Administrateurs',    value: users.filter(u => ['ADMIN','DRH'].includes(u.role)).length, color: 'danger' },
+              { label: 'Total utilisateurs', value: users.length,                                                    color: 'primary'   },
+              { label: 'Actifs',             value: users.filter(u => u.actif).length,                               color: 'success'   },
+              { label: 'Inactifs',           value: users.filter(u => !u.actif).length,                              color: 'secondary' },
+              { label: 'Administrateurs',    value: users.filter(u => ['ADMIN','DRH'].includes(u.role)).length,      color: 'danger'    },
             ].map(k => (
               <Col key={k.label} xs={6} md={3}>
                 <div className={`border border-${k.color} border-opacity-25 rounded p-3 bg-${k.color} bg-opacity-10 text-center`}>
@@ -161,9 +213,7 @@ export default function UsersList() {
             ))}
           </Row>
 
-          {error && (
-            <div className="alert alert-danger">Erreur chargement : {error.message}</div>
-          )}
+          {error && <div className="alert alert-danger">Erreur chargement : {error.message}</div>}
 
           <Table hover responsive className="align-middle">
             <thead className="table-light">
@@ -181,12 +231,7 @@ export default function UsersList() {
                 <tr key={u.id} style={{ opacity: u.actif ? 1 : 0.55 }}>
                   <td>
                     <div className="d-flex align-items-center gap-2">
-                      <div
-                        className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold"
-                        style={{ width: 34, height: 34, fontSize: 13, flexShrink: 0 }}
-                      >
-                        {(u.prenom?.[0] || '').toUpperCase()}{(u.nom?.[0] || '').toUpperCase()}
-                      </div>
+                      <Avatar user={u} size={36} />
                       <div>
                         <div className="fw-semibold small">{u.prenom} {u.nom}</div>
                         {u.id === currentUser?.id && (
@@ -202,33 +247,22 @@ export default function UsersList() {
                       {u.actif ? 'Actif' : 'Inactif'}
                     </Badge>
                   </td>
-                  <td>
-                    <small className="text-muted">
-                      {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}
-                    </small>
-                  </td>
+                  <td><small className="text-muted">{u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}</small></td>
                   <td className="text-center">
                     <div className="d-flex gap-1 justify-content-center">
-                      <Button
-                        variant="outline-primary" size="sm"
-                        onClick={() => openEdit(u)}
-                        title="Modifier le rôle"
-                      >
+                      <Button variant="outline-primary" size="sm" onClick={() => openEdit(u)} title="Modifier le rôle">
                         <i className="ph ph-pencil" />
                       </Button>
                       <Button
                         variant={u.actif ? 'outline-warning' : 'outline-success'} size="sm"
-                        onClick={() => toggleActif(u)}
-                        disabled={u.id === currentUser?.id}
+                        onClick={() => toggleActif(u)} disabled={u.id === currentUser?.id}
                         title={u.actif ? 'Désactiver' : 'Activer'}
                       >
                         <i className={`ph ph-${u.actif ? 'lock' : 'lock-open'}`} />
                       </Button>
                       <Button
-                        variant="outline-danger" size="sm"
-                        onClick={() => setDelUser(u)}
-                        disabled={u.id === currentUser?.id}
-                        title="Supprimer"
+                        variant="outline-danger" size="sm" onClick={() => setDelUser(u)}
+                        disabled={u.id === currentUser?.id} title="Supprimer"
                       >
                         <i className="ph ph-trash" />
                       </Button>
@@ -260,36 +294,25 @@ export default function UsersList() {
         <Modal.Body>
           <Form.Group className="mb-3">
             <Form.Label className="small fw-semibold">Rôle</Form.Label>
-            <Form.Select
-              value={editForm.role}
-              onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}
-            >
-              {ALL_ROLES.map(r => (
-                <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
-              ))}
+            <Form.Select value={editForm.role} onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}>
+              {ALL_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>)}
             </Form.Select>
             <Form.Text className="text-muted">
               {editForm.role === 'SUPER_USER' && 'Dashboard + Agents + Présences (lecture & écriture)'}
-              {editForm.role === 'DRH' && 'Tous les droits du système'}
-              {editForm.role === 'SG' && 'Lecture seule du tableau de bord'}
-              {editForm.role === 'ADMIN' && 'Administration complète du système'}
-              {editForm.role === 'RH' && 'Gestion RH : agents, congés, présences, recrutement'}
-              {editForm.role === 'CHEF' && 'Validation des congés et vue organisation'}
+              {editForm.role === 'DRH'        && 'Tous les droits du système'}
+              {editForm.role === 'SG'         && 'Lecture seule du tableau de bord'}
+              {editForm.role === 'ADMIN'      && 'Administration complète du système'}
+              {editForm.role === 'RH'         && 'Gestion RH : agents, congés, présences, recrutement'}
+              {editForm.role === 'CHEF'       && 'Validation des congés et vue organisation'}
             </Form.Text>
           </Form.Group>
           <Form.Group>
-            <Form.Check
-              type="switch"
-              label="Compte actif"
-              checked={editForm.actif}
-              onChange={e => setEditForm(p => ({ ...p, actif: e.target.checked }))}
-            />
+            <Form.Check type="switch" label="Compte actif" checked={editForm.actif}
+              onChange={e => setEditForm(p => ({ ...p, actif: e.target.checked }))} />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" size="sm" onClick={() => setEditUser(null)}>
-            Annuler
-          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={() => setEditUser(null)}>Annuler</Button>
           <Button variant="primary" size="sm" onClick={saveEdit} disabled={saving}>
             {saving ? <><Spinner size="sm" className="me-1" />Enregistrement…</> : 'Enregistrer'}
           </Button>
@@ -304,6 +327,49 @@ export default function UsersList() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {/* Zone photo */}
+          <div className="text-center mb-4">
+            <div
+              className="mx-auto position-relative"
+              style={{ width: 90, height: 90, cursor: 'pointer' }}
+              onClick={() => photoInputRef.current?.click()}
+              title="Cliquer pour choisir une photo"
+            >
+              {photoPreview ? (
+                <img
+                  src={photoPreview}
+                  alt="Aperçu"
+                  className="rounded-circle object-fit-cover border border-2 border-primary shadow-sm"
+                  style={{ width: 90, height: 90 }}
+                />
+              ) : (
+                <div
+                  className="rounded-circle bg-primary bg-opacity-10 border border-2 border-primary border-dashed d-flex flex-column align-items-center justify-content-center"
+                  style={{ width: 90, height: 90 }}
+                >
+                  <i className="ph ph-camera text-primary" style={{ fontSize: 28 }} />
+                  <span className="text-primary" style={{ fontSize: 10 }}>Photo</span>
+                </div>
+              )}
+              <div
+                className="position-absolute bottom-0 end-0 bg-primary rounded-circle d-flex align-items-center justify-content-center"
+                style={{ width: 26, height: 26 }}
+              >
+                <i className="ph ph-pencil-simple text-white" style={{ fontSize: 13 }} />
+              </div>
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="d-none"
+              onChange={handlePhotoSelect}
+            />
+            <p className="text-muted mt-1 mb-0" style={{ fontSize: 11 }}>
+              JPG, PNG ou WEBP — max 5 Mo (optionnel)
+            </p>
+          </div>
+
           <Row className="g-3">
             <Col xs={6}>
               <Form.Group>
@@ -337,9 +403,7 @@ export default function UsersList() {
                 <Form.Label className="small fw-semibold">Rôle</Form.Label>
                 <Form.Select size="sm" value={createForm.role}
                   onChange={e => setCreateForm(p => ({ ...p, role: e.target.value }))}>
-                  {ALL_ROLES.map(r => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
-                  ))}
+                  {ALL_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>)}
                 </Form.Select>
               </Form.Group>
             </Col>
@@ -372,9 +436,7 @@ export default function UsersList() {
           </Row>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" size="sm" onClick={() => setShowCreate(false)}>
-            Annuler
-          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={() => setShowCreate(false)}>Annuler</Button>
           <Button variant="primary" size="sm" onClick={submitCreate} disabled={saving}>
             {saving
               ? <><Spinner size="sm" className="me-1" />Création…</>
@@ -395,9 +457,7 @@ export default function UsersList() {
           Cette action est irréversible.
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" size="sm" onClick={() => setDelUser(null)}>
-            Annuler
-          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={() => setDelUser(null)}>Annuler</Button>
           <Button variant="danger" size="sm" onClick={confirmDelete} disabled={saving}>
             {saving ? <Spinner size="sm" /> : 'Supprimer'}
           </Button>
