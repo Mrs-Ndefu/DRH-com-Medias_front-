@@ -1,110 +1,173 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
-// react-bootstrap
-import Badge from 'react-bootstrap/Badge';
-import Button from 'react-bootstrap/Button';
-import Card from 'react-bootstrap/Card';
-import Col from 'react-bootstrap/Col';
-import Row from 'react-bootstrap/Row';
+import Badge   from 'react-bootstrap/Badge';
+import Button  from 'react-bootstrap/Button';
+import Card    from 'react-bootstrap/Card';
+import Col     from 'react-bootstrap/Col';
+import Form    from 'react-bootstrap/Form';
+import Row     from 'react-bootstrap/Row';
+import Spinner from 'react-bootstrap/Spinner';
 
-const FAKE_EMPLOYEES = [
-  { id: 'EMP001', nom: 'Mamadou Koné',       poste: 'Directeur adjoint',          matricule: '2019045' },
-  { id: 'EMP002', nom: 'Aminata Traoré',     poste: 'Chef de service RH',          matricule: '2020112' },
-  { id: 'EMP003', nom: 'Jean-Baptiste Yao',  poste: 'Administrateur principal',    matricule: '2018033' },
-  { id: 'EMP004', nom: 'Fatoumata Camara',   poste: 'Secrétaire de direction',     matricule: '2021089' },
-  { id: 'EMP005', nom: 'Ousmane Diallo',     poste: 'Agent de bureau',             matricule: '2022156' },
-  { id: 'EMP006', nom: 'Ndeye Sow',          poste: 'Chargée de mission',          matricule: '2020078' },
-  { id: 'EMP007', nom: 'Abdoulaye Barry',    poste: 'Inspecteur principal',        matricule: '2017022' },
-  { id: 'EMP008', nom: 'Marie-Claire Bah',   poste: "Attachée d'administration",   matricule: '2023201' },
-];
+import { api } from 'api/client';
 
 const PHASES = [
-  { key: 'reading',   label: "Lecture de l'empreinte…",    ms: 1000 },
-  { key: 'matching',  label: 'Identification biométrique…', ms: 900  },
-  { key: 'verifying', label: 'Vérification du dossier…',   ms: 700  },
+  { key: 'reading',   label: "Lecture de l'empreinte…",    ms: 800 },
+  { key: 'matching',  label: 'Identification biométrique…', ms: 700 },
+  { key: 'verifying', label: 'Vérification du dossier…',   ms: 600 },
 ];
 
-const todayStr = () => new Date().toISOString().split('T')[0];
-const fmtTime  = (d) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const fmtHeure = (str) => str ? str.substring(0, 5) : '—';
 
-// ==============================|| POINTAGE — SCANNER BIOMÉTRIQUE (SIMULÉ) ||============================== //
+const ENTREE_LIMITE_H = 9;
+const ENTREE_LIMITE_M = 45;
 
-export default function AttendanceScanner({ records, onScan }) {
-  const [phase,  setPhase]  = useState(null);   // null | 'reading' | 'matching' | 'verifying' | 'done'
-  const [result, setResult] = useState(null);
+function isLate() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  return h > ENTREE_LIMITE_H || (h === ENTREE_LIMITE_H && m > ENTREE_LIMITE_M);
+}
+
+// ==============================|| POINTAGE — SCANNER BIOMÉTRIQUE ||============================== //
+
+export default function AttendanceScanner({ agents, todayPresences, onScanDone }) {
+  const [selectedId, setSelectedId] = useState('');
+  const [phase,      setPhase]      = useState(null);
+  const [result,     setResult]     = useState(null);
+  const [error,      setError]      = useState(null);
 
   const scanning = phase !== null && phase !== 'done';
 
-  const runScan = () => {
-    setResult(null);
-    let delay = 0;
+  const detectType = (agentId) => {
+    const found = todayPresences.find(p => String(p.agent_id) === String(agentId));
+    if (!found || !found.heure_entree)  return 'IN';
+    if (found.heure_entree && !found.heure_sortie) return 'OUT';
+    return 'IN';
+  };
 
+  const runScan = () => {
+    if (!selectedId) return;
+    setResult(null);
+    setError(null);
+
+    let delay = 0;
     PHASES.forEach((p) => {
       setTimeout(() => setPhase(p.key), delay);
       delay += p.ms;
     });
 
-    setTimeout(() => {
-      const employee = FAKE_EMPLOYEES[Math.floor(Math.random() * FAKE_EMPLOYEES.length)];
-
-      const lastRecord = [...records]
-        .filter((r) => r.employeeId === employee.id && r.date === todayStr())
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-      const type = !lastRecord || lastRecord.type === 'OUT' ? 'IN' : 'OUT';
-      const now  = new Date();
-
-      const record = {
-        id:          Date.now(),
-        employeeId:  employee.id,
-        nom:         employee.nom,
-        poste:       employee.poste,
-        matricule:   employee.matricule,
-        type,
-        timestamp:   now,
-        date:        todayStr(),
-      };
-
-      onScan(record);
-      setResult({ ...record, time: fmtTime(now) });
-      setPhase('done');
+    setTimeout(async () => {
+      try {
+        const type = detectType(selectedId);
+        const data = await api.post('/presences/pointer', {
+          agent_id: parseInt(selectedId),
+          type,
+        });
+        setResult({ ...data, type });
+        onScanDone();
+      } catch (err) {
+        setError(err.message || 'Erreur lors du pointage.');
+      } finally {
+        setPhase('done');
+      }
     }, delay);
   };
 
-  const currentPhase = PHASES.find((p) => p.key === phase);
-  const isIN  = result?.type === 'IN';
-  const color = isIN ? 'success' : 'danger';
+  const type      = selectedId ? detectType(selectedId) : null;
+  const isIN      = result?.type === 'IN';
+  const retard    = result?.retard;
+  const sortieAnticipee = result?.sortie_anticipee;
+
+  const cardColor = isIN
+    ? (retard ? 'warning' : 'success')
+    : (sortieAnticipee ? 'warning' : 'danger');
+
+  const fpColor = scanning
+    ? '#f0ad4e'
+    : phase === 'done' && !error
+      ? '#198754'
+      : selectedId ? '#0d6efd' : '#adb5bd';
+
+  const currentPhase = PHASES.find(p => p.key === phase);
 
   return (
     <Row className="justify-content-center">
-      <Col xs={12} md={8} lg={5}>
+      <Col xs={12} md={8} lg={6}>
 
-        {/* ── Visuel du scanner ── */}
-        <div className="text-center py-5 px-4 border rounded bg-light mb-4">
+        {/* Sélecteur d'agent */}
+        <Form.Group className="mb-4">
+          <Form.Label className="fw-semibold">
+            <i className="ph ph-user me-2 text-primary" />Sélectionner l'agent
+          </Form.Label>
+          <Form.Select
+            value={selectedId}
+            onChange={e => { setSelectedId(e.target.value); setResult(null); setError(null); setPhase(null); }}
+            disabled={scanning}
+            size="lg"
+          >
+            <option value="">— Choisir un agent —</option>
+            {agents.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.prenom} {a.nom_famille} — {a.matricule}
+              </option>
+            ))}
+          </Form.Select>
+
+          {selectedId && (
+            <div className="mt-2 small d-flex align-items-center gap-2">
+              <Badge bg={type === 'IN' ? 'success' : 'danger'}>
+                <i className={`ph ph-${type === 'IN' ? 'sign-in' : 'sign-out'} me-1`} />
+                {type === 'IN' ? 'Entrée détectée' : 'Sortie détectée'}
+              </Badge>
+              {type === 'IN' && isLate() && (
+                <span className="text-warning fw-semibold">
+                  <i className="ph ph-warning me-1" />
+                  09h45 dépassé → sera marqué RETARD
+                </span>
+              )}
+              {type === 'IN' && !isLate() && (
+                <span className="text-success">
+                  <i className="ph ph-check me-1" />Dans les délais
+                </span>
+              )}
+            </div>
+          )}
+        </Form.Group>
+
+        {/* Visuel scanner */}
+        <div
+          className={`text-center py-5 px-4 border rounded mb-4 ${
+            selectedId ? 'border-primary bg-primary bg-opacity-5' : 'bg-light'
+          }`}
+        >
           <i
             className="ph ph-fingerprint d-block mb-3"
-            style={{
-              fontSize: 100,
-              color: scanning ? '#f0ad4e' : phase === 'done' ? '#198754' : '#adb5bd',
-              transition: 'color 0.4s ease'
-            }}
+            style={{ fontSize: 100, color: fpColor, transition: 'color 0.4s ease' }}
           />
 
           <div style={{ minHeight: 28 }} className="mb-4">
             {scanning && (
               <span className="text-warning fw-semibold">
-                <span className="spinner-grow spinner-grow-sm me-2 align-middle" />
+                <Spinner size="sm" animation="grow" className="me-2" />
                 {currentPhase?.label}
               </span>
             )}
-            {phase === 'done' && !scanning && (
+            {phase === 'done' && !error && (
               <span className="text-success fw-semibold">
-                <i className="ph ph-check-circle me-2" />Scan terminé
+                <i className="ph ph-check-circle me-2" />Pointage enregistré
               </span>
             )}
-            {!phase && (
-              <span className="text-muted small">Appuyez sur le bouton pour simuler un scan</span>
+            {phase === 'done' && error && (
+              <span className="text-danger small">{error}</span>
+            )}
+            {!phase && !selectedId && (
+              <span className="text-muted small">Sélectionnez un agent puis appuyez sur le bouton</span>
+            )}
+            {!phase && selectedId && (
+              <span className="text-primary small">
+                Agent sélectionné — appuyez pour pointer
+              </span>
             )}
           </div>
 
@@ -113,48 +176,81 @@ export default function AttendanceScanner({ records, onScan }) {
             size="lg"
             className="px-5"
             onClick={runScan}
-            disabled={scanning}
+            disabled={scanning || !selectedId}
           >
             {scanning ? (
-              <><span className="spinner-border spinner-border-sm me-2" />Scan en cours…</>
+              <><Spinner size="sm" className="me-2" />Scan en cours…</>
             ) : (
-              <><i className="ph ph-fingerprint me-2" />Scanner l'empreinte</>
+              <>
+                <i className="ph ph-fingerprint me-2" />
+                {type === 'IN' ? "Pointer l'entrée" : 'Pointer la sortie'}
+              </>
             )}
           </Button>
         </div>
 
-        {/* ── Résultat du scan ── */}
-        {result && (
-          <Card className={`border-${color} shadow-sm`} style={{ animation: 'fadeIn 0.3s ease' }}>
-            <Card.Header className={`bg-${color} text-white d-flex justify-content-between align-items-center`}>
+        {/* Résultat du pointage */}
+        {result && !error && (
+          <Card className={`border-${cardColor} shadow-sm`} style={{ animation: 'fadeIn 0.3s ease' }}>
+            <Card.Header
+              className={`bg-${cardColor} ${cardColor === 'warning' ? 'text-dark' : 'text-white'} d-flex justify-content-between align-items-center`}
+            >
               <span className="fw-semibold">
                 <i className={`ph ph-${isIN ? 'sign-in' : 'sign-out'} me-2`} />
                 {isIN ? 'Entrée enregistrée' : 'Sortie enregistrée'}
               </span>
-              <span className="fw-bold fs-6">{result.time}</span>
+              <span className="fw-bold fs-6">
+                {isIN ? fmtHeure(result.heure_entree) : fmtHeure(result.heure_sortie)}
+              </span>
             </Card.Header>
             <Card.Body>
               <div className="d-flex align-items-center gap-3">
                 <div
-                  className={`rounded-circle d-flex align-items-center justify-content-center bg-${color} bg-opacity-10 flex-shrink-0`}
-                  style={{ width: 56, height: 56 }}
+                  className={`rounded-circle d-flex align-items-center justify-content-center bg-${isIN ? 'success' : 'danger'} bg-opacity-10 flex-shrink-0`}
+                  style={{ width: 60, height: 60 }}
                 >
-                  <i className={`ph ph-user f-24 text-${color}`} />
+                  <i className={`ph ph-user f-26 text-${isIN ? 'success' : 'danger'}`} />
                 </div>
                 <div>
-                  <h5 className="mb-0">{result.nom}</h5>
+                  <h5 className="mb-0">{result.prenom} {result.nom_famille}</h5>
                   <p className="text-muted small mb-2">{result.poste}</p>
-                  <Badge bg="light" text="dark" className="me-2">
-                    <i className="ph ph-identification-card me-1" />
-                    {result.matricule}
-                  </Badge>
-                  <Badge bg={isIN ? 'success' : 'danger'}>
-                    {isIN ? '↓ Entrée' : '↑ Sortie'}
-                  </Badge>
+                  <div className="d-flex flex-wrap gap-2">
+                    <Badge bg="light" text="dark">
+                      <i className="ph ph-identification-card me-1" />
+                      {result.matricule}
+                    </Badge>
+                    {isIN && retard && (
+                      <Badge bg="warning" text="dark">
+                        <i className="ph ph-warning me-1" />RETARD
+                      </Badge>
+                    )}
+                    {isIN && !retard && (
+                      <Badge bg="success">
+                        <i className="ph ph-check me-1" />À l'heure
+                      </Badge>
+                    )}
+                    {!isIN && sortieAnticipee && (
+                      <Badge bg="warning" text="dark">
+                        <i className="ph ph-warning me-1" />Sortie anticipée
+                      </Badge>
+                    )}
+                  </div>
+                  {result.observation && (
+                    <p className="text-muted small mt-2 mb-0 fst-italic">
+                      <i className="ph ph-note me-1" />{result.observation}
+                    </p>
+                  )}
                 </div>
               </div>
             </Card.Body>
           </Card>
+        )}
+
+        {error && (
+          <div className="alert alert-danger d-flex align-items-center gap-2">
+            <i className="ph ph-warning-circle flex-shrink-0" />
+            {error}
+          </div>
         )}
       </Col>
     </Row>
@@ -162,6 +258,7 @@ export default function AttendanceScanner({ records, onScan }) {
 }
 
 AttendanceScanner.propTypes = {
-  records: PropTypes.array.isRequired,
-  onScan:  PropTypes.func.isRequired,
+  agents:         PropTypes.array.isRequired,
+  todayPresences: PropTypes.array.isRequired,
+  onScanDone:     PropTypes.func.isRequired,
 };

@@ -1,82 +1,66 @@
-import PropTypes from 'prop-types';
 import { useState } from 'react';
+import useSWR from 'swr';
 
-// react-bootstrap
-import Badge from 'react-bootstrap/Badge';
-import Col from 'react-bootstrap/Col';
-import Form from 'react-bootstrap/Form';
-import Row from 'react-bootstrap/Row';
-import Table from 'react-bootstrap/Table';
+import Badge   from 'react-bootstrap/Badge';
+import Col     from 'react-bootstrap/Col';
+import Form    from 'react-bootstrap/Form';
+import Row     from 'react-bootstrap/Row';
+import Spinner from 'react-bootstrap/Spinner';
+import Table   from 'react-bootstrap/Table';
 
 import MainCard from 'components/MainCard';
+import { fetcher } from 'api/client';
 
-const todayStr  = () => new Date().toISOString().split('T')[0];
-const fmtTime   = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
-const fmtDate   = (str) => new Date(str).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+const todayStr = () => new Date().toISOString().split('T')[0];
 
-const computeRows = (records, date) => {
-  const dayRecords = records.filter((r) => r.date === date);
-  const byEmployee = {};
-
-  dayRecords.forEach((r) => {
-    if (!byEmployee[r.employeeId]) {
-      byEmployee[r.employeeId] = { ...r, ins: [], outs: [] };
-    }
-    if (r.type === 'IN')  byEmployee[r.employeeId].ins.push(new Date(r.timestamp));
-    else                  byEmployee[r.employeeId].outs.push(new Date(r.timestamp));
+const fmtHeure = (str) => (str ? str.substring(0, 5) : '—');
+const fmtDate  = (str) =>
+  new Date(str + 'T12:00:00').toLocaleDateString('fr-FR', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  return Object.values(byEmployee).map((emp) => {
-    const ins  = emp.ins.sort((a, b) => a - b);
-    const outs = emp.outs.sort((a, b) => a - b);
-    const arrivee = ins[0]                      || null;
-    const depart  = outs[outs.length - 1]       || null;
+function calcDuree(entree, sortie) {
+  if (!entree || !sortie) return '—';
+  const [hE, mE] = entree.split(':').map(Number);
+  const [hS, mS] = sortie.split(':').map(Number);
+  const diff = hS * 60 + mS - (hE * 60 + mE);
+  if (diff <= 0) return '—';
+  return `${Math.floor(diff / 60)}h${String(diff % 60).padStart(2, '0')}`;
+}
 
-    let duree = '—';
-    if (arrivee && depart) {
-      const diff = depart - arrivee;
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      duree = `${h}h${String(m).padStart(2, '0')}`;
-    }
-
-    const retard = arrivee && arrivee.getHours() >= 8 && arrivee.getMinutes() > 15;
-
-    return {
-      employeeId: emp.employeeId,
-      nom:        emp.nom,
-      poste:      emp.poste,
-      matricule:  emp.matricule,
-      arrivee,
-      depart,
-      duree,
-      retard,
-      statut: depart ? 'Terminé' : 'En cours',
-    };
-  }).sort((a, b) => (a.arrivee || 0) - (b.arrivee || 0));
+const STATUT = {
+  PRESENT: { label: 'Présent',  bg: 'success',   text: undefined },
+  RETARD:  { label: 'Retard',   bg: 'warning',   text: 'dark'    },
+  ABSENT:  { label: 'Absent',   bg: 'secondary', text: undefined },
+  CONGE:   { label: 'En congé', bg: 'info',      text: undefined },
 };
 
-// ==============================|| POINTAGE — RAPPORT JOURNALIER ||============================== //
+// ==============================|| POINTAGE — RAPPORT ||============================== //
 
-export default function AttendanceReport({ records }) {
+export default function AttendanceReport() {
   const [dateFilter, setDateFilter] = useState(todayStr());
 
-  const rows      = computeRows(records, dateFilter);
-  const enCours   = rows.filter((r) => r.statut === 'En cours').length;
-  const termines  = rows.filter((r) => r.statut === 'Terminé').length;
-  const retards   = rows.filter((r) => r.retard).length;
-  const total     = rows.length;
+  const { data, isLoading } = useSWR(`/presences?date=${dateFilter}`, fetcher, {
+    refreshInterval: 60000,
+    revalidateOnFocus: true,
+  });
+
+  const presences   = data || [];
+  const nbPresents  = presences.filter(p => p.statut === 'PRESENT').length;
+  const nbRetards   = presences.filter(p => p.statut === 'RETARD').length;
+  const nbSortis    = presences.filter(p => p.heure_sortie).length;
+  const total       = presences.length;
 
   const kpis = [
-    { label: 'Présents aujourd\'hui', value: total,    icon: 'ph-users',          color: 'primary'  },
-    { label: 'En cours (non sortis)', value: enCours,  icon: 'ph-sign-in',        color: 'success'  },
-    { label: 'Sorties enregistrées',  value: termines, icon: 'ph-sign-out',       color: 'secondary'},
-    { label: 'Retards signalés',      value: retards,  icon: 'ph-warning-circle', color: 'warning'  },
+    { label: 'Total pointages',      value: total,      icon: 'ph-users',          color: 'primary'   },
+    { label: 'À l\'heure',           value: nbPresents, icon: 'ph-check-circle',   color: 'success'   },
+    { label: 'Retards signalés',     value: nbRetards,  icon: 'ph-warning-circle', color: 'warning'   },
+    { label: 'Sorties enregistrées', value: nbSortis,   icon: 'ph-sign-out',       color: 'secondary' },
   ];
 
   return (
     <>
-      {/* ── Sélecteur de date ── */}
+      {/* Sélecteur de date */}
       <Row className="g-3 mb-4 align-items-end">
         <Col xs={12} sm={6} md={3}>
           <Form.Label className="small mb-1">Date du rapport</Form.Label>
@@ -84,11 +68,11 @@ export default function AttendanceReport({ records }) {
             type="date"
             size="sm"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={e => setDateFilter(e.target.value)}
           />
         </Col>
         {dateFilter && (
-          <Col xs={12} sm={6} md={5}>
+          <Col xs={12} sm={6} md={6}>
             <p className="text-muted small mb-0">
               <i className="ph ph-calendar me-1" />{fmtDate(dateFilter)}
             </p>
@@ -96,9 +80,9 @@ export default function AttendanceReport({ records }) {
         )}
       </Row>
 
-      {/* ── KPI cards ── */}
+      {/* KPI cards */}
       <Row className="g-3 mb-4">
-        {kpis.map((kpi) => (
+        {kpis.map(kpi => (
           <Col key={kpi.label} xs={6} xl={3}>
             <MainCard>
               <div className="d-flex align-items-center gap-3">
@@ -118,55 +102,61 @@ export default function AttendanceReport({ records }) {
         ))}
       </Row>
 
-      {/* ── Tableau récapitulatif par employé ── */}
-      <Table hover responsive className="align-middle">
-        <thead className="table-light">
-          <tr>
-            <th>Matricule</th>
-            <th>Nom & Prénom</th>
-            <th>Poste</th>
-            <th className="text-center">Arrivée</th>
-            <th className="text-center">Départ</th>
-            <th className="text-center">Durée</th>
-            <th className="text-center">Statut</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
+      {/* Tableau */}
+      {isLoading ? (
+        <div className="text-center py-4">
+          <Spinner variant="primary" />
+          <p className="text-muted small mt-2">Chargement du rapport…</p>
+        </div>
+      ) : (
+        <Table hover responsive className="align-middle">
+          <thead className="table-light">
             <tr>
-              <td colSpan={7} className="text-center text-muted py-5">
-                <i className="ph ph-chart-bar f-36 d-block mb-2" />
-                Aucune donnée de présence pour cette date
-              </td>
+              <th>Matricule</th>
+              <th>Nom &amp; Prénom</th>
+              <th>Direction</th>
+              <th className="text-center">Entrée</th>
+              <th className="text-center">Sortie</th>
+              <th className="text-center">Durée</th>
+              <th className="text-center">Statut</th>
             </tr>
-          ) : (
-            rows.map((row) => (
-              <tr key={row.employeeId}>
-                <td><code className="text-muted">{row.matricule}</code></td>
-                <td>
-                  <span className="fw-semibold">{row.nom}</span>
-                  {row.retard && (
-                    <Badge bg="warning" text="dark" className="ms-2 small">
-                      <i className="ph ph-clock me-1" />Retard
-                    </Badge>
-                  )}
-                </td>
-                <td className="text-muted small">{row.poste}</td>
-                <td className="text-center">{fmtTime(row.arrivee)}</td>
-                <td className="text-center">{fmtTime(row.depart)}</td>
-                <td className="text-center fw-semibold">{row.duree}</td>
-                <td className="text-center">
-                  <Badge bg={row.statut === 'Terminé' ? 'secondary' : 'success'}>
-                    {row.statut}
-                  </Badge>
+          </thead>
+          <tbody>
+            {presences.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center text-muted py-5">
+                  <i className="ph ph-chart-bar f-36 d-block mb-2" />
+                  Aucune donnée de présence pour cette date
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </Table>
+            ) : (
+              presences.map(p => {
+                const s = STATUT[p.statut] || { label: p.statut, bg: 'secondary', text: undefined };
+                return (
+                  <tr key={p.id} className={p.statut === 'RETARD' ? 'table-warning' : ''}>
+                    <td><code className="text-muted small">{p.matricule}</code></td>
+                    <td>
+                      <span className="fw-semibold">{p.prenom} {p.nom_famille}</span>
+                      {p.statut === 'RETARD' && (
+                        <Badge bg="warning" text="dark" className="ms-2 small">
+                          <i className="ph ph-clock me-1" />Retard
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="text-muted small">{p.direction_libelle || '—'}</td>
+                    <td className="text-center fw-semibold">{fmtHeure(p.heure_entree)}</td>
+                    <td className="text-center text-muted">{fmtHeure(p.heure_sortie)}</td>
+                    <td className="text-center">{calcDuree(p.heure_entree, p.heure_sortie)}</td>
+                    <td className="text-center">
+                      <Badge bg={s.bg} text={s.text}>{s.label}</Badge>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </Table>
+      )}
     </>
   );
 }
-
-AttendanceReport.propTypes = { records: PropTypes.array.isRequired };
