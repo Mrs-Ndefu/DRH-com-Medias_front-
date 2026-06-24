@@ -67,11 +67,12 @@ export default function ProfileSettings() {
     try {
       const updated = await uploadSelfPhoto(file);
       setPreview(null);
-      if (setUser) setUser(u => ({ ...u, photo: updated.photo }));
+      // Met à jour le contexte auth + localStorage pour persistance après refresh
+      setUser(u => ({ ...u, photo: updated.photo }));
       refreshMe();
       setPhotoAlert({ type: 'success', msg: 'Photo mise à jour avec succès.' });
-    } catch (e) {
-      setPhotoAlert({ type: 'danger', msg: e.message });
+    } catch (err) {
+      setPhotoAlert({ type: 'danger', msg: err.message });
     } finally {
       setUploading(false);
       e.target.value = '';

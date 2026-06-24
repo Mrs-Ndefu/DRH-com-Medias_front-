@@ -94,8 +94,8 @@ export default function LeavesTable({ leaves, onSelect }) {
             </tr>
           ) : (
             filtered.map((l) => {
-              const lt = LEAVE_TYPES[l.type];
-              const st = STATUSES[l.status];
+              const lt = LEAVE_TYPES[l.type?.toUpperCase()] || { label: l.type, color: 'secondary', icon: 'ph-calendar' };
+              const st = STATUSES[l.status] || { label: l.status, color: 'secondary' };
               return (
                 <tr key={l.id} style={{ borderLeft: `3px solid var(--bs-${st.color})` }}>
                   <td>

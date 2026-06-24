@@ -40,8 +40,8 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
   const [rejectMotif, setRejectMotif] = useState('');
   const [rejectBy,    setRejectBy]    = useState('Chef de service');
 
-  const lt = LEAVE_TYPES[leave.type];
-  const st = STATUSES[leave.status];
+  const lt = LEAVE_TYPES[leave.type?.toUpperCase()] || { label: leave.type, color: 'secondary', icon: 'ph-calendar' };
+  const st = STATUSES[leave.status] || { label: leave.status, color: 'secondary' };
 
   const canApproveChef = leave.status === 'PENDING_CHEF';
   const canApproveDRH  = leave.status === 'PENDING_DRH';
