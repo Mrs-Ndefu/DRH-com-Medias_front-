@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
@@ -16,6 +18,8 @@ const EMPTY = { code: '', nom: '', sigle: '', chef: '', chefMatricule: '', effec
 // ==============================|| ORGANISATION — DIRECTIONS ||============================== //
 
 export default function DirectionsList({ directions, divisions, setDirections }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [modal,    setModal]    = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form,     setForm]     = useState(EMPTY);
@@ -46,9 +50,11 @@ export default function DirectionsList({ directions, divisions, setDirections })
             <Badge bg="secondary" className="ms-1">{directions.filter(d => !d.active).length}</Badge> inactives
           </small>
         </div>
-        <Button variant="primary" size="sm" onClick={openAdd}>
-          <i className="ph ph-plus me-2" />Ajouter une direction
-        </Button>
+        {!readOnly && (
+          <Button variant="primary" size="sm" onClick={openAdd}>
+            <i className="ph ph-plus me-2" />Ajouter une direction
+          </Button>
+        )}
       </div>
 
       <Table hover responsive className="align-middle">
@@ -91,14 +97,16 @@ export default function DirectionsList({ directions, divisions, setDirections })
                   </Badge>
                 </td>
                 <td className="text-center">
-                  <div className="d-flex gap-1 justify-content-center">
-                    <Button variant="outline-primary" size="sm" onClick={() => openEdit(d)} title="Modifier">
-                      <i className="ph ph-pencil" />
-                    </Button>
-                    <Button variant={d.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(d.id)} title={d.active ? 'Désactiver' : 'Activer'}>
-                      <i className={`ph ph-${d.active ? 'pause' : 'play'}`} />
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="d-flex gap-1 justify-content-center">
+                      <Button variant="outline-primary" size="sm" onClick={() => openEdit(d)} title="Modifier">
+                        <i className="ph ph-pencil" />
+                      </Button>
+                      <Button variant={d.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(d.id)} title={d.active ? 'Désactiver' : 'Activer'}>
+                        <i className={`ph ph-${d.active ? 'pause' : 'play'}`} />
+                      </Button>
+                    </div>
+                  )}
                 </td>
               </tr>
             );

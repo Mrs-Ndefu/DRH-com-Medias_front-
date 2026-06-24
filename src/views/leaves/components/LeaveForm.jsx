@@ -1,31 +1,27 @@
 import PropTypes from 'prop-types';
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 
-// react-bootstrap
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import Modal from 'react-bootstrap/Modal';
 import Row from 'react-bootstrap/Row';
+import Spinner from 'react-bootstrap/Spinner';
 
-import { FAKE_EMPLOYEES, LEAVE_TYPES, countBusinessDays } from '../data/leaves';
+import { fetcher } from 'api/client';
+import { LEAVE_TYPES, countBusinessDays } from '../data/leaves';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-const EMPTY = {
-  employeeId: '',
-  type:       'ANNUEL',
-  dateDebut:  '',
-  dateFin:    '',
-  nbJours:    0,
-  motif:      '',
-};
-
-// ==============================|| CONGÉS — FORMULAIRE DE DEMANDE ||============================== //
+const EMPTY = { employeeId: '', type: 'ANNUEL', dateDebut: '', dateFin: '', nbJours: 0, motif: '' };
 
 export default function LeaveForm({ show, onHide, onSubmit }) {
   const [form,   setForm]   = useState(EMPTY);
   const [errors, setErrors] = useState({});
+
+  const { data: agentsData, isLoading: agentsLoading } = useSWR('/agents?limit=100', fetcher);
+  const agents = agentsData?.data || [];
 
   useEffect(() => {
     if (!show) { setForm(EMPTY); setErrors({}); }
@@ -33,21 +29,21 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
 
   useEffect(() => {
     if (form.dateDebut && form.dateFin && form.dateFin >= form.dateDebut) {
-      setForm((prev) => ({ ...prev, nbJours: countBusinessDays(form.dateDebut, form.dateFin) }));
+      setForm((p) => ({ ...p, nbJours: countBusinessDays(form.dateDebut, form.dateFin) }));
     } else {
-      setForm((prev) => ({ ...prev, nbJours: 0 }));
+      setForm((p) => ({ ...p, nbJours: 0 }));
     }
   }, [form.dateDebut, form.dateFin]);
 
-  const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const set = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }));
 
   const validate = () => {
     const e = {};
-    if (!form.employeeId)                       e.employeeId = 'Choisissez un employé';
-    if (!form.dateDebut)                        e.dateDebut  = 'Date de début requise';
-    if (!form.dateFin)                          e.dateFin    = 'Date de fin requise';
+    if (!form.employeeId)  e.employeeId = 'Choisissez un agent';
+    if (!form.dateDebut)   e.dateDebut  = 'Date de début requise';
+    if (!form.dateFin)     e.dateFin    = 'Date de fin requise';
     if (form.dateFin && form.dateFin < form.dateDebut) e.dateFin = 'La fin doit être après le début';
-    if (!form.motif.trim())                     e.motif      = 'Motif requis';
+    if (!form.motif.trim()) e.motif     = 'Motif requis';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -55,20 +51,23 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
   const handleSubmit = (ev) => {
     ev.preventDefault();
     if (!validate()) return;
-
-    const emp = FAKE_EMPLOYEES.find((e) => e.id === form.employeeId);
+    const agent = agents.find((a) => String(a.id) === String(form.employeeId));
     onSubmit({
-      ...form,
-      nom:        emp.nom,
-      poste:      emp.poste,
-      matricule:  emp.matricule,
-      service:    emp.service,
-      status:     'PENDING_CHEF',
+      employeeId: parseInt(form.employeeId),
+      type:       form.type,
+      dateDebut:  form.dateDebut,
+      dateFin:    form.dateFin,
+      nbJours:    form.nbJours,
+      motif:      form.motif,
+      nom:        agent ? `${agent.prenom} ${agent.nom_famille}` : '',
+      matricule:  agent?.matricule || '',
+      service:    agent?.direction_libelle || '',
     });
     onHide();
   };
 
   const lt = LEAVE_TYPES[form.type];
+  const selectedAgent = agents.find((a) => String(a.id) === String(form.employeeId));
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
@@ -82,15 +81,23 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Body>
           <Row className="g-3">
-            {/* Employé */}
+            {/* Agent */}
             <Col xs={12} md={6}>
-              <Form.Label className="small">Employé <span className="text-danger">*</span></Form.Label>
-              <Form.Select size="sm" value={form.employeeId} onChange={set('employeeId')} isInvalid={!!errors.employeeId}>
-                <option value="">— Sélectionner —</option>
-                {FAKE_EMPLOYEES.map((e) => (
-                  <option key={e.id} value={e.id}>{e.nom} ({e.matricule})</option>
-                ))}
-              </Form.Select>
+              <Form.Label className="small">Agent <span className="text-danger">*</span></Form.Label>
+              {agentsLoading ? (
+                <div className="d-flex align-items-center gap-2 text-muted small">
+                  <Spinner size="sm" animation="border" /> Chargement des agents…
+                </div>
+              ) : (
+                <Form.Select size="sm" value={form.employeeId} onChange={set('employeeId')} isInvalid={!!errors.employeeId}>
+                  <option value="">— Sélectionner un agent —</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.prenom} {a.nom_famille} ({a.matricule})
+                    </option>
+                  ))}
+                </Form.Select>
+              )}
               <Form.Control.Feedback type="invalid">{errors.employeeId}</Form.Control.Feedback>
             </Col>
 
@@ -108,11 +115,8 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
             <Col xs={12} md={4}>
               <Form.Label className="small">Date de début <span className="text-danger">*</span></Form.Label>
               <Form.Control
-                type="date" size="sm"
-                min={todayStr()}
-                value={form.dateDebut}
-                onChange={set('dateDebut')}
-                isInvalid={!!errors.dateDebut}
+                type="date" size="sm" min={todayStr()}
+                value={form.dateDebut} onChange={set('dateDebut')} isInvalid={!!errors.dateDebut}
               />
               <Form.Control.Feedback type="invalid">{errors.dateDebut}</Form.Control.Feedback>
             </Col>
@@ -120,21 +124,15 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
             <Col xs={12} md={4}>
               <Form.Label className="small">Date de fin <span className="text-danger">*</span></Form.Label>
               <Form.Control
-                type="date" size="sm"
-                min={form.dateDebut || todayStr()}
-                value={form.dateFin}
-                onChange={set('dateFin')}
-                isInvalid={!!errors.dateFin}
+                type="date" size="sm" min={form.dateDebut || todayStr()}
+                value={form.dateFin} onChange={set('dateFin')} isInvalid={!!errors.dateFin}
               />
               <Form.Control.Feedback type="invalid">{errors.dateFin}</Form.Control.Feedback>
             </Col>
 
             <Col xs={12} md={4}>
               <Form.Label className="small">Jours ouvrables</Form.Label>
-              <div
-                className="border rounded px-3 d-flex align-items-center justify-content-center fw-bold text-primary"
-                style={{ height: 31, fontSize: 18 }}
-              >
+              <div className="border rounded px-3 d-flex align-items-center justify-content-center fw-bold text-primary" style={{ height: 31, fontSize: 18 }}>
                 {form.nbJours > 0 ? form.nbJours : '—'}
               </div>
             </Col>
@@ -145,9 +143,7 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
               <Form.Control
                 as="textarea" rows={3} size="sm"
                 placeholder="Précisez le motif de la demande…"
-                value={form.motif}
-                onChange={set('motif')}
-                isInvalid={!!errors.motif}
+                value={form.motif} onChange={set('motif')} isInvalid={!!errors.motif}
               />
               <Form.Control.Feedback type="invalid">{errors.motif}</Form.Control.Feedback>
             </Col>
@@ -166,7 +162,7 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
                   <i className={`ph ${lt.icon} f-20`} />
                   <span>
                     <strong>{lt.label}</strong> — {form.nbJours} jour{form.nbJours > 1 ? 's' : ''} ouvrable{form.nbJours > 1 ? 's' : ''}
-                    {form.employeeId && ` pour ${FAKE_EMPLOYEES.find((e) => e.id === form.employeeId)?.nom}`}
+                    {selectedAgent && ` pour ${selectedAgent.prenom} ${selectedAgent.nom_famille}`}
                   </span>
                 </div>
               </Col>

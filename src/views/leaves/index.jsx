@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import useSWR, { mutate as swrMutate } from 'swr';
 
 // react-bootstrap
 import Badge from 'react-bootstrap/Badge';
@@ -6,18 +7,19 @@ import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
 import Nav from 'react-bootstrap/Nav';
 import Row from 'react-bootstrap/Row';
+import Spinner from 'react-bootstrap/Spinner';
 
 // project-imports
 import MainCard from 'components/MainCard';
-import { INITIAL_LEAVES } from './data/leaves';
+import { fetcher, api } from 'api/client';
+import { useAuth } from 'contexts/AuthContext';
 import LeavesDashboard from './components/LeavesDashboard';
 import LeavesTable     from './components/LeavesTable';
 import LeaveCalendar   from './components/LeaveCalendar';
 import LeaveForm       from './components/LeaveForm';
 import LeaveDetail     from './components/LeaveDetail';
 
-const nowStr = () => new Date().toISOString().split('T')[0];
-let nextId = 100;
+const CONGES_KEY = '/conges';
 
 const TABS = [
   { id: 'dashboard',  icon: 'ph-squares-four', label: 'Tableau de bord' },
@@ -25,46 +27,93 @@ const TABS = [
   { id: 'calendrier', icon: 'ph-calendar',     label: 'Calendrier'      },
 ];
 
+// Adapte les données API → format attendu par les composants enfants
+function adaptLeave(c) {
+  return {
+    id:             c.id,
+    employeeId:     c.agent_id,
+    nom:            `${c.prenom || ''} ${c.nom_famille || ''}`.trim(),
+    poste:          c.poste || '',
+    matricule:      c.matricule || '',
+    service:        c.direction_libelle || '',
+    type:           c.type,
+    dateDebut:      c.date_debut,
+    dateFin:        c.date_fin,
+    nbJours:        c.nb_jours,
+    motif:          c.motif,
+    status:         c.status,
+    createdAt:      c.created_at,
+    validationChef: c.validation_chef_date ? {
+      date:        c.validation_chef_date,
+      validatedBy: c.validation_chef_par,
+      comment:     c.validation_chef_com,
+    } : null,
+    validationDRH: c.validation_drh_date ? {
+      date:        c.validation_drh_date,
+      validatedBy: c.validation_drh_par,
+      comment:     c.validation_drh_com,
+    } : null,
+    rejection: c.rejet_date ? {
+      date:       c.rejet_date,
+      rejectedBy: c.rejet_par,
+      motif:      c.rejet_motif,
+    } : null,
+  };
+}
+
 // ==============================|| MODULE LEAVE MANAGEMENT ||============================== //
 
 export default function LeavesPage() {
-  const [activeTab,     setActiveTab]     = useState('dashboard');
-  const [leaves,        setLeaves]        = useState(INITIAL_LEAVES);
-  const [showForm,      setShowForm]      = useState(false);
+  const { user }                        = useAuth();
+  const [activeTab,     setActiveTab]   = useState('dashboard');
+  const [showForm,      setShowForm]    = useState(false);
   const [selectedLeave, setSelectedLeave] = useState(null);
 
-  const updateLeave = (id, updates) =>
-    setLeaves((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
+  const { data: raw, isLoading } = useSWR(CONGES_KEY, fetcher);
+  const leaves = (raw?.data || []).map(adaptLeave);
 
-  const createLeave = (data) => {
-    const leaf = {
-      id:             `LV${++nextId}`,
-      createdAt:      nowStr(),
-      validationChef: null,
-      validationDRH:  null,
-      rejection:      null,
-      ...data,
-    };
-    setLeaves((prev) => [leaf, ...prev]);
+  const refresh = () => swrMutate(CONGES_KEY);
+
+  const createLeave = async (data) => {
+    await api.post('/conges', {
+      agent_id:   data.employeeId,
+      type:       data.type,
+      date_debut: data.dateDebut,
+      date_fin:   data.dateFin,
+      nb_jours:   data.nbJours,
+      motif:      data.motif,
+    });
+    refresh();
   };
 
-  const approveChef = (id, comment) =>
-    updateLeave(id, {
-      status:         'PENDING_DRH',
-      validationChef: { date: nowStr(), validatedBy: 'Chef de service (vous)', comment },
+  const approveChef = async (id, comment) => {
+    await api.patch(`/conges/${id}/valider-chef`, {
+      par: `${user?.prenom} ${user?.nom} — Chef de service`,
+      commentaire: comment,
+      approuve: true,
     });
+    refresh();
+  };
 
-  const approveDRH = (id, comment) =>
-    updateLeave(id, {
-      status:        'APPROVED',
-      validationDRH: { date: nowStr(), validatedBy: 'Directeur RH (vous)', comment },
+  const approveDRH = async (id, comment) => {
+    await api.patch(`/conges/${id}/valider-drh`, {
+      par: `${user?.prenom} ${user?.nom} — Directeur RH`,
+      commentaire: comment,
+      approuve: true,
     });
+    refresh();
+  };
 
-  const rejectLeave = (id, rejectedBy, motif) =>
-    updateLeave(id, {
-      status:    'REJECTED',
-      rejection: { date: nowStr(), rejectedBy, motif },
+  const rejectLeave = async (id, rejectedBy, motif) => {
+    const status = leaves.find(l => l.id === id)?.status;
+    const endpoint = status === 'PENDING_DRH' ? 'valider-drh' : 'valider-chef';
+    await api.patch(`/conges/${id}/${endpoint}`, {
+      par: rejectedBy,
+      commentaire: motif,
+      approuve: false,
     });
+    refresh();
+  };
 
   const pendingCount = leaves.filter(
     (l) => l.status === 'PENDING_CHEF' || l.status === 'PENDING_DRH'
@@ -83,6 +132,7 @@ export default function LeavesPage() {
               <div className="d-flex align-items-center gap-3">
                 <i className="ph ph-calendar-check f-24 text-primary" />
                 <span>Gestion des congés</span>
+                {isLoading && <Spinner animation="border" size="sm" variant="primary" />}
                 {pendingCount > 0 && (
                   <Badge bg="warning" text="dark">
                     <i className="ph ph-clock me-1" />{pendingCount} en attente

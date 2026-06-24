@@ -1,18 +1,79 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import useSWR, { mutate } from 'swr';
 
+import Alert from 'react-bootstrap/Alert';
 import Badge from 'react-bootstrap/Badge';
 import Col from 'react-bootstrap/Col';
 import Nav from 'react-bootstrap/Nav';
 import Row from 'react-bootstrap/Row';
+import Spinner from 'react-bootstrap/Spinner';
 
 import MainCard from 'components/MainCard';
-
-import { FAKE_BULLETINS, FAKE_DECLARATIONS, FAKE_ELEMENTS, FAKE_VIREMENTS, MOIS_NOMS } from './data/payroll';
+import { fetcher, api } from 'api/client';
+import { MOIS_NOMS } from './data/payroll';
 import BulletinsList  from './components/BulletinsList';
 import Declarations   from './components/Declarations';
 import ElementsPaie   from './components/ElementsPaie';
 import Virements      from './components/Virements';
+
+const MOIS_COURANT = new Date().getMonth() + 1;
+const ANNEE_COURANTE = new Date().getFullYear();
+
+// ── Adapters snake_case → camelCase ──────────────────────────────────────────
+
+function adaptBulletin(b) {
+  return {
+    id:             b.id,
+    agentId:        b.agent_id,
+    mois:           b.mois,
+    annee:          b.annee,
+    periode:        b.periode,
+    indice:         b.indice,
+    salaireBase:    parseFloat(b.salaire_base)    || 0,
+    salaireBrut:    parseFloat(b.salaire_brut)    || 0,
+    totalRetenues:  parseFloat(b.total_retenues)  || 0,
+    salaireNet:     parseFloat(b.salaire_net)     || 0,
+    modePaiement:   b.mode_paiement || 'ESPECES',
+    banque:         b.banque        || '',
+    numCompte:      b.num_compte    || '',
+    statut:         b.statut,
+    reference:      b.reference,
+    dateGeneration: b.date_generation,
+    dateValidation: b.date_validation,
+    nom:            b.nom_famille   || '',
+    prenom:         b.prenom        || '',
+    matricule:      b.matricule     || '',
+    grade:          b.grade         || '',
+    categorie:      b.categorie     || '',
+    direction:      b.direction_libelle || '',
+    primes:         [],
+    retenues:       [],
+  };
+}
+
+function adaptElement(e) {
+  return { ...e, active: e.actif !== false };
+}
+
+function adaptVirement(v) {
+  return {
+    ...v,
+    montantTotal:    parseFloat(v.montant_total)    || 0,
+    nbBeneficiaires: parseInt(v.nb_beneficiaires)  || 0,
+    dateVirement:    v.date_virement || null,
+  };
+}
+
+function adaptDeclaration(d) {
+  return {
+    ...d,
+    montantTotal:        parseFloat(d.montant_total)       || 0,
+    cotisationPatronale: parseFloat(d.cotisation_patronale)|| 0,
+    dateLimite:          d.date_limite       || null,
+    dateDeclaration:     d.date_declaration  || null,
+  };
+}
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -49,12 +110,14 @@ function VueEnsemble({ bulletins, virements, declarations }) {
   const dashN = circ * pctNet;
   const dashR = circ * pctRet;
 
+  const periodeLabel = `${MOIS_NOMS[MOIS_COURANT - 1]} ${ANNEE_COURANTE}`;
+
   return (
     <>
       {/* ── KPI cards ── */}
       <Row className="g-3 mb-4">
         {[
-          { label: 'Masse salariale brute', value: fmt(masseBrute), icon: 'ph-money',         color: 'primary', sub: `Juin 2026` },
+          { label: 'Masse salariale brute', value: fmt(masseBrute), icon: 'ph-money',         color: 'primary', sub: periodeLabel },
           { label: 'Masse salariale nette', value: fmt(masseNette), icon: 'ph-wallet',         color: 'success', sub: `${bulletins.length} agents` },
           { label: 'Bulletins validés',     value: nbValides,       icon: 'ph-check-circle',   color: 'info',    sub: `${nbCalcules} à valider` },
           { label: 'Bulletins virés',       value: nbVires,         icon: 'ph-paper-plane-tilt',color: 'warning', sub: `${virAtente} ordre(s) en attente` },
@@ -75,143 +138,152 @@ function VueEnsemble({ bulletins, virements, declarations }) {
         ))}
       </Row>
 
-      <Row className="g-3">
-        {/* ── Barres par agent ── */}
-        <Col xs={12} md={7}>
-          <div className="border rounded p-3 h-100">
-            <h6 className="mb-3 text-muted">
-              <i className="ph ph-chart-bar me-2 text-primary" />Net à payer par agent — Juin 2026
-            </h6>
-            <svg viewBox={`0 0 420 ${bulletins.length * 36 + 10}`} width="100%">
-              {bulletins.map((b, i) => {
-                const bw = (b.salaireNet / maxNet) * BAR_W;
-                const y  = i * 36 + 6;
-                const col = b.statut === 'VIRE' ? '#0d6efd' : b.statut === 'VALIDE' ? '#198754' : '#6c757d';
-                return (
-                  <g key={b.id}>
-                    <text x={0} y={y + 13} fontSize={10} fill="#6c757d">{b.prenom[0]}. {b.nom}</text>
-                    <rect x={75} y={y} width={Math.max(bw, 4)} height={22} rx={4} fill={col} fillOpacity={0.8} />
-                    <text x={75 + Math.max(bw, 4) + 4} y={y + 14} fontSize={9} fill="#333">
-                      {new Intl.NumberFormat('fr-FR').format(Math.round(b.salaireNet))}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="d-flex gap-3 mt-2">
-              {[['#0d6efd','Viré'],['#198754','Validé'],['#6c757d','Calculé']].map(([c,l]) => (
-                <span key={l} className="d-flex align-items-center gap-1" style={{ fontSize: 11 }}>
-                  <span style={{ width:10, height:10, background:c, borderRadius:2, display:'inline-block' }} />
-                  <span className="text-muted">{l}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </Col>
-
-        {/* ── Donut + récapitulatif ── */}
-        <Col xs={12} md={5}>
-          <div className="border rounded p-3 h-100">
-            <h6 className="mb-3 text-muted">
-              <i className="ph ph-chart-pie me-2 text-primary" />Répartition de la masse salariale
-            </h6>
-            <div className="d-flex align-items-center gap-4">
-              <svg viewBox="0 0 130 130" width={130} height={130}>
-                <circle cx={CX} cy={CY} r={R} fill="none" stroke="#e9ecef" strokeWidth={18} />
-                <circle cx={CX} cy={CY} r={R} fill="none" stroke="#198754" strokeWidth={18}
-                  strokeDasharray={`${dashN} ${circ}`} strokeDashoffset={circ * 0.25}
-                  strokeLinecap="round" />
-                <circle cx={CX} cy={CY} r={R} fill="none" stroke="#dc3545" strokeWidth={18}
-                  strokeDasharray={`${dashR} ${circ}`} strokeDashoffset={circ * 0.25 - dashN}
-                  strokeLinecap="round" />
-                <text x={CX} y={CY - 5}  textAnchor="middle" fontSize={11} fill="#333" fontWeight="600">
-                  {Math.round(pctNet * 100)}%
-                </text>
-                <text x={CX} y={CY + 10} textAnchor="middle" fontSize={9} fill="#6c757d">Net</text>
+      {bulletins.length === 0 ? (
+        <div className="text-center py-5 text-muted">
+          <i className="ph ph-file-text" style={{ fontSize: 48, opacity: 0.3 }} />
+          <p className="mt-3">Aucun bulletin pour {periodeLabel}.<br />
+            Cliquez sur <strong>Bulletins de paie</strong> puis <strong>Générer bulletins</strong>.
+          </p>
+        </div>
+      ) : (
+        <Row className="g-3">
+          {/* ── Barres par agent ── */}
+          <Col xs={12} md={7}>
+            <div className="border rounded p-3 h-100">
+              <h6 className="mb-3 text-muted">
+                <i className="ph ph-chart-bar me-2 text-primary" />Net à payer par agent — {periodeLabel}
+              </h6>
+              <svg viewBox={`0 0 420 ${bulletins.length * 36 + 10}`} width="100%">
+                {bulletins.map((b, i) => {
+                  const bw = (b.salaireNet / maxNet) * BAR_W;
+                  const y  = i * 36 + 6;
+                  const col = b.statut === 'VIRE' ? '#0d6efd' : b.statut === 'VALIDE' ? '#198754' : '#6c757d';
+                  return (
+                    <g key={b.id}>
+                      <text x={0} y={y + 13} fontSize={10} fill="#6c757d">{b.prenom[0]}. {b.nom}</text>
+                      <rect x={75} y={y} width={Math.max(bw, 4)} height={22} rx={4} fill={col} fillOpacity={0.8} />
+                      <text x={75 + Math.max(bw, 4) + 4} y={y + 14} fontSize={9} fill="#333">
+                        {new Intl.NumberFormat('fr-FR').format(Math.round(b.salaireNet))}
+                      </text>
+                    </g>
+                  );
+                })}
               </svg>
-              <div className="flex-grow-1">
-                {[
-                  { label: 'Salaire brut',  value: fmt(masseBrute), color: '#0d6efd' },
-                  { label: 'Net à payer',   value: fmt(masseNette), color: '#198754' },
-                  { label: 'Total retenues',value: fmt(totalRet),   color: '#dc3545' },
-                ].map(r => (
-                  <div key={r.label} className="d-flex justify-content-between align-items-center py-1 border-bottom">
-                    <span className="d-flex align-items-center gap-1" style={{ fontSize: 12 }}>
-                      <span style={{ width:8, height:8, background:r.color, borderRadius:'50%', display:'inline-block' }} />
-                      {r.label}
-                    </span>
-                    <span className="fw-semibold" style={{ fontSize: 11 }}>{r.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Tableau récap par statut */}
-            <div className="mt-3">
-              <div className="d-flex justify-content-between text-muted mb-1" style={{ fontSize: 11 }}>
-                <span>Avancement Juin 2026</span>
-                <span>{bulletins.length} agents</span>
-              </div>
-              <div className="progress" style={{ height: 8 }}>
-                {[
-                  { key:'VIRE',    pct: nbVires/bulletins.length*100,   color:'primary' },
-                  { key:'VALIDE',  pct: nbValides/bulletins.length*100, color:'success' },
-                  { key:'CALCULE', pct: nbCalcules/bulletins.length*100,color:'secondary'},
-                ].map(s => (
-                  <div key={s.key} className={`progress-bar bg-${s.color}`} style={{ width:`${s.pct}%` }} />
-                ))}
-              </div>
-              <div className="d-flex gap-3 mt-1">
-                {[['primary','Viré',nbVires],['success','Validé',nbValides],['secondary','Calculé',nbCalcules]].map(([c,l,n])=>(
-                  <span key={l} style={{ fontSize:10 }} className="text-muted">
-                    <Badge bg={c} className="me-1">{n}</Badge>{l}
+              <div className="d-flex gap-3 mt-2">
+                {[['#0d6efd','Viré'],['#198754','Validé'],['#6c757d','Calculé']].map(([c,l]) => (
+                  <span key={l} className="d-flex align-items-center gap-1" style={{ fontSize: 11 }}>
+                    <span style={{ width:10, height:10, background:c, borderRadius:2, display:'inline-block' }} />
+                    <span className="text-muted">{l}</span>
                   </span>
                 ))}
               </div>
             </div>
-          </div>
-        </Col>
+          </Col>
 
-        {/* ── Prochaines échéances ── */}
-        <Col xs={12}>
-          <div className="border rounded p-3">
-            <h6 className="mb-3 text-muted">
-              <i className="ph ph-calendar-check me-2 text-primary" />Prochaines échéances déclaratives
-            </h6>
-            <Row className="g-2">
-              {declarations.filter(d => ['EN_ATTENTE','SOUMISE'].includes(d.statut)).map(d => {
-                const isLate = d.dateLimite && new Date(d.dateLimite) < new Date();
-                return (
-                  <Col key={d.id} xs={12} md={4}>
-                    <div className={`border border-${isLate ? 'danger' : 'warning'} border-opacity-50 rounded p-2`}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <Badge bg={d.type === 'INPS' ? 'primary' : d.type === 'CANAM' ? 'info' : 'warning'}>
-                          {d.type}
-                        </Badge>
-                        <small className={`fw-bold ${isLate ? 'text-danger' : 'text-warning'}`}>
-                          {isLate && <i className="ph ph-warning me-1" />}
-                          {fmtD(d.dateLimite)}
-                        </small>
+          {/* ── Donut + récapitulatif ── */}
+          <Col xs={12} md={5}>
+            <div className="border rounded p-3 h-100">
+              <h6 className="mb-3 text-muted">
+                <i className="ph ph-chart-pie me-2 text-primary" />Répartition de la masse salariale
+              </h6>
+              <div className="d-flex align-items-center gap-4">
+                <svg viewBox="0 0 130 130" width={130} height={130}>
+                  <circle cx={CX} cy={CY} r={R} fill="none" stroke="#e9ecef" strokeWidth={18} />
+                  <circle cx={CX} cy={CY} r={R} fill="none" stroke="#198754" strokeWidth={18}
+                    strokeDasharray={`${dashN} ${circ}`} strokeDashoffset={circ * 0.25}
+                    strokeLinecap="round" />
+                  <circle cx={CX} cy={CY} r={R} fill="none" stroke="#dc3545" strokeWidth={18}
+                    strokeDasharray={`${dashR} ${circ}`} strokeDashoffset={circ * 0.25 - dashN}
+                    strokeLinecap="round" />
+                  <text x={CX} y={CY - 5}  textAnchor="middle" fontSize={11} fill="#333" fontWeight="600">
+                    {Math.round(pctNet * 100)}%
+                  </text>
+                  <text x={CX} y={CY + 10} textAnchor="middle" fontSize={9} fill="#6c757d">Net</text>
+                </svg>
+                <div className="flex-grow-1">
+                  {[
+                    { label: 'Salaire brut',  value: fmt(masseBrute), color: '#0d6efd' },
+                    { label: 'Net à payer',   value: fmt(masseNette), color: '#198754' },
+                    { label: 'Total retenues',value: fmt(totalRet),   color: '#dc3545' },
+                  ].map(r => (
+                    <div key={r.label} className="d-flex justify-content-between align-items-center py-1 border-bottom">
+                      <span className="d-flex align-items-center gap-1" style={{ fontSize: 12 }}>
+                        <span style={{ width:8, height:8, background:r.color, borderRadius:'50%', display:'inline-block' }} />
+                        {r.label}
+                      </span>
+                      <span className="fw-semibold" style={{ fontSize: 11 }}>{r.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tableau récap par statut */}
+              <div className="mt-3">
+                <div className="d-flex justify-content-between text-muted mb-1" style={{ fontSize: 11 }}>
+                  <span>Avancement {periodeLabel}</span>
+                  <span>{bulletins.length} agents</span>
+                </div>
+                <div className="progress" style={{ height: 8 }}>
+                  {[
+                    { key:'VIRE',    pct: nbVires/bulletins.length*100,   color:'primary' },
+                    { key:'VALIDE',  pct: nbValides/bulletins.length*100, color:'success' },
+                    { key:'CALCULE', pct: nbCalcules/bulletins.length*100,color:'secondary'},
+                  ].map(s => (
+                    <div key={s.key} className={`progress-bar bg-${s.color}`} style={{ width:`${s.pct}%` }} />
+                  ))}
+                </div>
+                <div className="d-flex gap-3 mt-1">
+                  {[['primary','Viré',nbVires],['success','Validé',nbValides],['secondary','Calculé',nbCalcules]].map(([c,l,n])=>(
+                    <span key={l} style={{ fontSize:10 }} className="text-muted">
+                      <Badge bg={c} className="me-1">{n}</Badge>{l}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Col>
+
+          {/* ── Prochaines échéances ── */}
+          <Col xs={12}>
+            <div className="border rounded p-3">
+              <h6 className="mb-3 text-muted">
+                <i className="ph ph-calendar-check me-2 text-primary" />Prochaines échéances déclaratives
+              </h6>
+              <Row className="g-2">
+                {declarations.filter(d => ['EN_ATTENTE','SOUMISE'].includes(d.statut)).map(d => {
+                  const isLate = d.dateLimite && new Date(d.dateLimite) < new Date();
+                  return (
+                    <Col key={d.id} xs={12} md={4}>
+                      <div className={`border border-${isLate ? 'danger' : 'warning'} border-opacity-50 rounded p-2`}>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <Badge bg={d.type === 'INPS' ? 'primary' : d.type === 'CANAM' ? 'info' : 'warning'}>
+                            {d.type}
+                          </Badge>
+                          <small className={`fw-bold ${isLate ? 'text-danger' : 'text-warning'}`}>
+                            {isLate && <i className="ph ph-warning me-1" />}
+                            {fmtD(d.dateLimite)}
+                          </small>
+                        </div>
+                        <div className="small fw-semibold mt-1">{d.libelle}</div>
+                        <div className="text-muted" style={{ fontSize: 11 }}>
+                          Montant : {fmt(d.montantTotal)}
+                        </div>
                       </div>
-                      <div className="small fw-semibold mt-1">{d.libelle}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>
-                        Montant : {fmt(d.montantTotal)}
-                      </div>
+                    </Col>
+                  );
+                })}
+                {declarations.filter(d => ['EN_ATTENTE','SOUMISE'].includes(d.statut)).length === 0 && (
+                  <Col>
+                    <div className="text-center text-muted py-2">
+                      <i className="ph ph-check-circle text-success me-2" />Aucune déclaration en attente
                     </div>
                   </Col>
-                );
-              })}
-              {declarations.filter(d => ['EN_ATTENTE','SOUMISE'].includes(d.statut)).length === 0 && (
-                <Col>
-                  <div className="text-center text-muted py-2">
-                    <i className="ph ph-check-circle text-success me-2" />Aucune déclaration en attente
-                  </div>
-                </Col>
-              )}
-            </Row>
-          </div>
-        </Col>
-      </Row>
+                )}
+              </Row>
+            </div>
+          </Col>
+        </Row>
+      )}
     </>
   );
 }
@@ -232,16 +304,35 @@ export default function PayrollPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('apercu');
 
-  const [bulletins,    setBulletins]    = useState(FAKE_BULLETINS);
-  const [elements,     setElements]     = useState(FAKE_ELEMENTS);
-  const [virements,    setVirements]    = useState(FAKE_VIREMENTS);
-  const [declarations, setDeclarations] = useState(FAKE_DECLARATIONS);
+  const bulletinsKey   = `/payroll/bulletins?mois=${MOIS_COURANT}&annee=${ANNEE_COURANTE}`;
+  const elementsKey    = `/payroll/elements`;
+  const virementsKey   = `/payroll/virements?mois=${MOIS_COURANT}&annee=${ANNEE_COURANTE}`;
+  const declarationsKey= `/payroll/declarations?mois=${MOIS_COURANT}&annee=${ANNEE_COURANTE}`;
+
+  const { data: bulletinsData,    isLoading: loadBul  } = useSWR(bulletinsKey,    fetcher);
+  const { data: elementsData,     isLoading: loadElt  } = useSWR(elementsKey,     fetcher);
+  const { data: virementsData,    isLoading: loadVir  } = useSWR(virementsKey,    fetcher);
+  const { data: declarationsData, isLoading: loadDec  } = useSWR(declarationsKey, fetcher);
+
+  const bulletins    = (bulletinsData?.data    || []).map(adaptBulletin);
+  const elements     = (elementsData           || []).map(adaptElement);
+  const virements    = (virementsData          || []).map(adaptVirement);
+  const declarations = (declarationsData       || []).map(adaptDeclaration);
+
+  const setBulletins    = () => mutate(bulletinsKey);
+  const setElements     = () => mutate(elementsKey);
+  const setVirements    = () => mutate(virementsKey);
+  const setDeclarations = () => mutate(declarationsKey);
+
+  const isLoading = loadBul || loadElt || loadVir || loadDec;
 
   // Nb badges
   const nbCalcules = bulletins.filter(b => b.statut === 'CALCULE').length;
   const nbValides  = bulletins.filter(b => b.statut === 'VALIDE').length;
   const nbDecPend  = declarations.filter(d => d.statut === 'EN_ATTENTE' || d.statut === 'SOUMISE').length;
   const nbVirPend  = virements.filter(v => v.statut === 'EN_ATTENTE').length;
+
+  const periodeLabel = `${MOIS_NOMS[MOIS_COURANT - 1]} ${ANNEE_COURANTE}`;
 
   const badges = {
     bulletins:    nbCalcules + nbValides > 0 ? nbCalcules + nbValides : null,
@@ -267,7 +358,8 @@ export default function PayrollPage() {
           title={
             <span>
               <i className="ph ph-money me-2 text-primary" />
-              Service de la paie — Juin 2026
+              Service de la paie — {periodeLabel}
+              {isLoading && <Spinner animation="border" size="sm" className="ms-3" />}
             </span>
           }
         >

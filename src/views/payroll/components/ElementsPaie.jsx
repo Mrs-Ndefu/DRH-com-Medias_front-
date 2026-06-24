@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
@@ -17,6 +19,8 @@ const EMPTY = { code: '', designation: '', type: 'PRIME', base: 'FIXE', taux: ''
 // ==============================|| PAIE — ÉLÉMENTS DE PAIE ||============================== //
 
 export default function ElementsPaie({ elements, setElements }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [modal,    setModal]    = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form,     setForm]     = useState(EMPTY);
@@ -53,9 +57,11 @@ export default function ElementsPaie({ elements, setElements }) {
 
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h6 className="mb-0">Éléments de paie</h6>
-        <Button variant="primary" size="sm" onClick={openAdd}>
-          <i className="ph ph-plus me-2" />Nouvel élément
-        </Button>
+        {!readOnly && (
+          <Button variant="primary" size="sm" onClick={openAdd}>
+            <i className="ph ph-plus me-2" />Nouvel élément
+          </Button>
+        )}
       </div>
 
       <Table hover responsive className="align-middle">
@@ -90,14 +96,16 @@ export default function ElementsPaie({ elements, setElements }) {
                   <Badge bg={e.active ? 'success' : 'secondary'}>{e.active ? 'Actif' : 'Inactif'}</Badge>
                 </td>
                 <td className="text-center">
-                  <div className="d-flex gap-1 justify-content-center">
-                    <Button variant="outline-primary" size="sm" onClick={() => openEdit(e)}>
-                      <i className="ph ph-pencil" />
-                    </Button>
-                    <Button variant={e.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(e.id)}>
-                      <i className={`ph ph-${e.active ? 'pause' : 'play'}`} />
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="d-flex gap-1 justify-content-center">
+                      <Button variant="outline-primary" size="sm" onClick={() => openEdit(e)}>
+                        <i className="ph ph-pencil" />
+                      </Button>
+                      <Button variant={e.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(e.id)}>
+                        <i className={`ph ph-${e.active ? 'pause' : 'play'}`} />
+                      </Button>
+                    </div>
+                  )}
                 </td>
               </tr>
             );

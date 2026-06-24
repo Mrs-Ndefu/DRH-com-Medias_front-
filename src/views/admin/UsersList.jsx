@@ -32,16 +32,21 @@ function RoleBadge({ role }) {
   return <Badge bg={r.color}>{r.label}</Badge>;
 }
 
+const BLANK_CREATE = { prenom: '', nom: '', email: '', role: 'RH', password: '', confirm: '' };
+
 export default function UsersList() {
   const { user: currentUser } = useAuth();
   const { data: raw, isLoading, error } = useSWR(USERS_KEY, fetcher);
   const users = raw?.data || [];
 
-  const [editUser, setEditUser]   = useState(null);
-  const [editForm, setEditForm]   = useState({ role: '', actif: true });
-  const [delUser,  setDelUser]    = useState(null);
-  const [saving,   setSaving]     = useState(false);
-  const [alert,    setAlert]      = useState(null);
+  const [editUser,    setEditUser]    = useState(null);
+  const [editForm,    setEditForm]    = useState({ role: '', actif: true });
+  const [delUser,     setDelUser]     = useState(null);
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [createForm,  setCreateForm]  = useState(BLANK_CREATE);
+  const [showPwd,     setShowPwd]     = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [alert,       setAlert]       = useState(null);
 
   const refresh = () => mutate(USERS_KEY);
 
@@ -83,15 +88,51 @@ export default function UsersList() {
     }
   };
 
+  const openCreate = () => { setCreateForm(BLANK_CREATE); setShowPwd(false); setShowCreate(true); };
+
+  const submitCreate = async () => {
+    if (!createForm.prenom || !createForm.nom || !createForm.email || !createForm.password) {
+      return setAlert({ type: 'danger', msg: 'Tous les champs sont obligatoires.' });
+    }
+    if (createForm.password !== createForm.confirm) {
+      return setAlert({ type: 'danger', msg: 'Les mots de passe ne correspondent pas.' });
+    }
+    if (createForm.password.length < 6) {
+      return setAlert({ type: 'danger', msg: 'Le mot de passe doit faire au moins 6 caractères.' });
+    }
+    setSaving(true);
+    try {
+      await api.post('/auth/register', {
+        prenom:   createForm.prenom,
+        nom:      createForm.nom,
+        email:    createForm.email,
+        role:     createForm.role,
+        password: createForm.password,
+      });
+      refresh();
+      setShowCreate(false);
+      setAlert({ type: 'success', msg: `Compte créé pour ${createForm.prenom} ${createForm.nom}.` });
+    } catch (e) {
+      setAlert({ type: 'danger', msg: e.message || 'Erreur lors de la création.' });
+    } finally { setSaving(false); }
+  };
+
   return (
     <Row>
       <Col xs={12}>
         <MainCard
           title={
-            <div className="d-flex align-items-center gap-3">
-              <i className="ph ph-users-three f-24 text-primary" />
-              <span>Gestion des utilisateurs</span>
-              {isLoading && <Spinner animation="border" size="sm" variant="primary" />}
+            <div className="d-flex align-items-center justify-content-between w-100">
+              <div className="d-flex align-items-center gap-3">
+                <i className="ph ph-users-three f-24 text-primary" />
+                <span>Gestion des utilisateurs</span>
+                {isLoading && <Spinner animation="border" size="sm" variant="primary" />}
+              </div>
+              {currentUser?.role === 'ADMIN' && (
+                <Button variant="primary" size="sm" onClick={openCreate}>
+                  <i className="ph ph-user-plus me-2" />Créer un utilisateur
+                </Button>
+              )}
             </div>
           }
         >
@@ -251,6 +292,93 @@ export default function UsersList() {
           </Button>
           <Button variant="primary" size="sm" onClick={saveEdit} disabled={saving}>
             {saving ? <><Spinner size="sm" className="me-1" />Enregistrement…</> : 'Enregistrer'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ── Modal créer utilisateur ── */}
+      <Modal show={showCreate} onHide={() => setShowCreate(false)} centered>
+        <Modal.Header closeButton className="bg-primary text-white">
+          <Modal.Title className="fs-6">
+            <i className="ph ph-user-plus me-2" />Créer un compte utilisateur
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col xs={6}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Prénom <span className="text-danger">*</span></Form.Label>
+                <Form.Control size="sm" value={createForm.prenom}
+                  onChange={e => setCreateForm(p => ({ ...p, prenom: e.target.value }))}
+                  placeholder="Moussa" />
+              </Form.Group>
+            </Col>
+            <Col xs={6}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Nom <span className="text-danger">*</span></Form.Label>
+                <Form.Control size="sm" value={createForm.nom}
+                  onChange={e => setCreateForm(p => ({ ...p, nom: e.target.value }))}
+                  placeholder="Diallo" />
+              </Form.Group>
+            </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Email <span className="text-danger">*</span></Form.Label>
+                <div className="input-group input-group-sm">
+                  <span className="input-group-text"><i className="ph ph-envelope" /></span>
+                  <Form.Control type="email" value={createForm.email}
+                    onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
+                    placeholder="prenom.nom@ministere.ml" />
+                </div>
+              </Form.Group>
+            </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Rôle</Form.Label>
+                <Form.Select size="sm" value={createForm.role}
+                  onChange={e => setCreateForm(p => ({ ...p, role: e.target.value }))}>
+                  {ALL_ROLES.map(r => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Mot de passe <span className="text-danger">*</span></Form.Label>
+                <div className="input-group input-group-sm">
+                  <span className="input-group-text"><i className="ph ph-lock" /></span>
+                  <Form.Control type={showPwd ? 'text' : 'password'} value={createForm.password}
+                    onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))}
+                    placeholder="Min. 6 caractères" />
+                  <button type="button" className="btn btn-outline-secondary btn-sm"
+                    onClick={() => setShowPwd(v => !v)} tabIndex={-1}>
+                    <i className={`ph ${showPwd ? 'ph-eye-slash' : 'ph-eye'}`} />
+                  </button>
+                </div>
+              </Form.Group>
+            </Col>
+            <Col xs={12}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Confirmer le mot de passe <span className="text-danger">*</span></Form.Label>
+                <div className="input-group input-group-sm">
+                  <span className="input-group-text"><i className="ph ph-lock-key" /></span>
+                  <Form.Control type={showPwd ? 'text' : 'password'} value={createForm.confirm}
+                    onChange={e => setCreateForm(p => ({ ...p, confirm: e.target.value }))}
+                    placeholder="Répétez le mot de passe" />
+                </div>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" size="sm" onClick={() => setShowCreate(false)}>
+            Annuler
+          </Button>
+          <Button variant="primary" size="sm" onClick={submitCreate} disabled={saving}>
+            {saving
+              ? <><Spinner size="sm" className="me-1" />Création…</>
+              : <><i className="ph ph-user-plus me-1" />Créer le compte</>}
           </Button>
         </Modal.Footer>
       </Modal>

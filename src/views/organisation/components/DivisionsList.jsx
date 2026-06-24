@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
@@ -14,6 +16,8 @@ const EMPTY = { directionId: '', code: '', nom: '', chef: '', effectif: '', desc
 // ==============================|| ORGANISATION — DIVISIONS ||============================== //
 
 export default function DivisionsList({ divisions, bureaux, directions, setDivisions }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [modal,       setModal]       = useState(false);
   const [editItem,    setEditItem]    = useState(null);
   const [form,        setForm]        = useState(EMPTY);
@@ -52,9 +56,11 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
             <option value="">Toutes les directions</option>
             {directions.map(d => <option key={d.id} value={d.id}>{d.sigle} — {d.nom}</option>)}
           </Form.Select>
-          <Button variant="primary" size="sm" onClick={openAdd}>
-            <i className="ph ph-plus me-2" />Ajouter
-          </Button>
+          {!readOnly && (
+            <Button variant="primary" size="sm" onClick={openAdd}>
+              <i className="ph ph-plus me-2" />Ajouter
+            </Button>
+          )}
         </div>
       </div>
 
@@ -92,14 +98,16 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
                     <Badge bg={d.active ? 'success' : 'secondary'}>{d.active ? 'Active' : 'Inactive'}</Badge>
                   </td>
                   <td className="text-center">
-                    <div className="d-flex gap-1 justify-content-center">
-                      <Button variant="outline-primary" size="sm" onClick={() => openEdit(d)}>
-                        <i className="ph ph-pencil" />
-                      </Button>
-                      <Button variant={d.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(d.id)}>
-                        <i className={`ph ph-${d.active ? 'pause' : 'play'}`} />
-                      </Button>
-                    </div>
+                    {!readOnly && (
+                      <div className="d-flex gap-1 justify-content-center">
+                        <Button variant="outline-primary" size="sm" onClick={() => openEdit(d)}>
+                          <i className="ph ph-pencil" />
+                        </Button>
+                        <Button variant={d.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggle(d.id)}>
+                          <i className={`ph ph-${d.active ? 'pause' : 'play'}`} />
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

@@ -18,7 +18,7 @@ export default function Footer() {
         <Row className="justify-content-center justify-content-md-between">
           {/* Footer Text */}
           <Col xs="auto" className="my-1">
-            <p className="m-0">© {new Date().getFullYear()} Ministère de la Communication et des Médias (MCM)</p>
+            <p className="m-0">© {new Date().getFullYear()} Ministère de la Communication et des Médias</p>
           </Col>
 
           {/* Footer Links */}

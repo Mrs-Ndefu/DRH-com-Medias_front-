@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
@@ -20,6 +22,8 @@ const TYPE_LABELS = { INPS: 'INPS (Retraite)', CANAM: 'CANAM (Santé)', IMPOTS: 
 // ==============================|| PAIE — DÉCLARATIONS SOCIALES ||============================== //
 
 export default function Declarations({ declarations, setDeclarations }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [noteModal, setNoteModal] = useState(null);
   const [refForm,   setRefForm]   = useState({ reference: '', dateDeclaration: '' });
 
@@ -128,12 +132,12 @@ export default function Declarations({ declarations, setDeclarations }) {
                 <td className="text-center"><Badge bg={s.color}>{s.label}</Badge></td>
                 <td className="text-center">
                   <div className="d-flex gap-1 justify-content-center">
-                    {d.statut === 'EN_ATTENTE' && (
+                    {!readOnly && d.statut === 'EN_ATTENTE' && (
                       <Button variant="outline-info" size="sm" title="Soumettre" onClick={() => soumettre(d.id)}>
                         <i className="ph ph-paper-plane-tilt" />
                       </Button>
                     )}
-                    {d.statut === 'SOUMISE' && (
+                    {!readOnly && d.statut === 'SOUMISE' && (
                       <Button variant="outline-success" size="sm" title="Valider / saisir référence" onClick={() => openValider(d)}>
                         <i className="ph ph-check" />
                       </Button>

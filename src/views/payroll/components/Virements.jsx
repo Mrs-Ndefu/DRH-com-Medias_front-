@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
@@ -16,6 +18,8 @@ const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
 // ==============================|| PAIE — VIREMENTS ||============================== //
 
 export default function Virements({ virements, setVirements, bulletins }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [detail, setDetail] = useState(null);
 
   const traiter = (id) =>
@@ -52,9 +56,11 @@ export default function Virements({ virements, setVirements, bulletins }) {
 
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h6 className="mb-0">Ordres de virement</h6>
-        <Button variant="primary" size="sm" disabled={bulletins.filter(b => b.statut === 'VALIDE').length === 0}>
-          <i className="ph ph-paper-plane-tilt me-2" />Générer ordre de virement
-        </Button>
+        {!readOnly && (
+          <Button variant="primary" size="sm" disabled={bulletins.filter(b => b.statut === 'VALIDE').length === 0}>
+            <i className="ph ph-paper-plane-tilt me-2" />Générer ordre de virement
+          </Button>
+        )}
       </div>
 
       <Table hover responsive className="align-middle">
@@ -87,7 +93,7 @@ export default function Virements({ virements, setVirements, bulletins }) {
                     <Button variant="outline-primary" size="sm" onClick={() => setDetail(v)} title="Détail">
                       <i className="ph ph-eye" />
                     </Button>
-                    {v.statut === 'EN_ATTENTE' && (
+                    {!readOnly && v.statut === 'EN_ATTENTE' && (
                       <>
                         <Button variant="outline-success" size="sm" onClick={() => traiter(v.id)} title="Marquer traité">
                           <i className="ph ph-check" />

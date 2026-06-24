@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import { useAuth } from 'contexts/AuthContext';
+
 import Accordion from 'react-bootstrap/Accordion';
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
@@ -18,6 +20,8 @@ const EMPTY_BUR = { divisionId: '', nom: '', chef: '', effectif: '', active: tru
 // ==============================|| ORGANISATION — SECRÉTARIAT GÉNÉRAL ||============================== //
 
 export default function SecretariatGeneral({ sgDivisions, setSgDivisions, sgBureaux, setSgBureaux }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [modalDiv,   setModalDiv]   = useState(false);
   const [modalBur,   setModalBur]   = useState(false);
   const [editDiv,    setEditDiv]    = useState(null);
@@ -91,9 +95,11 @@ export default function SecretariatGeneral({ sgDivisions, setSgDivisions, sgBure
             <Badge bg="warning" text="dark" className="me-1">{sgDivisions.filter(d => d.active).length}</Badge>divisions actives
           </small>
         </div>
-        <Button variant="warning" size="sm" onClick={openAddDiv}>
-          <i className="ph ph-plus me-2" />Ajouter une division
-        </Button>
+        {!readOnly && (
+          <Button variant="warning" size="sm" onClick={openAddDiv}>
+            <i className="ph ph-plus me-2" />Ajouter une division
+          </Button>
+        )}
       </div>
 
       <Accordion className="mb-4">
@@ -109,14 +115,18 @@ export default function SecretariatGeneral({ sgDivisions, setSgDivisions, sgBure
                   <div className="ms-auto d-flex gap-2 align-items-center">
                     <Badge bg="light" text="dark">{div.effectif || 0} agents</Badge>
                     <Badge bg="secondary">{divBur.length} bureau{divBur.length > 1 ? 'x' : ''}</Badge>
-                    <Button variant="outline-warning" size="sm" className="py-0 px-1"
-                      onClick={(e) => { e.stopPropagation(); openEditDiv(div); }}>
-                      <i className="ph ph-pencil" />
-                    </Button>
-                    <Button variant={div.active ? 'outline-secondary' : 'outline-success'} size="sm" className="py-0 px-1"
-                      onClick={(e) => { e.stopPropagation(); toggleDiv(div.id); }}>
-                      <i className={`ph ph-${div.active ? 'pause' : 'play'}`} />
-                    </Button>
+                    {!readOnly && (
+                      <>
+                        <Button variant="outline-warning" size="sm" className="py-0 px-1"
+                          onClick={(e) => { e.stopPropagation(); openEditDiv(div); }}>
+                          <i className="ph ph-pencil" />
+                        </Button>
+                        <Button variant={div.active ? 'outline-secondary' : 'outline-success'} size="sm" className="py-0 px-1"
+                          onClick={(e) => { e.stopPropagation(); toggleDiv(div.id); }}>
+                          <i className={`ph ph-${div.active ? 'pause' : 'play'}`} />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </Accordion.Header>
@@ -145,23 +155,27 @@ export default function SecretariatGeneral({ sgDivisions, setSgDivisions, sgBure
                             <Badge bg={b.active ? 'success' : 'secondary'}>{b.active ? 'Actif' : 'Inactif'}</Badge>
                           </td>
                           <td className="text-center">
-                            <div className="d-flex gap-1 justify-content-center">
-                              <Button variant="outline-primary" size="sm" onClick={() => openEditBur(b)}>
-                                <i className="ph ph-pencil" />
-                              </Button>
-                              <Button variant={b.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggleBur(b.id)}>
-                                <i className={`ph ph-${b.active ? 'pause' : 'play'}`} />
-                              </Button>
-                            </div>
+                            {!readOnly && (
+                              <div className="d-flex gap-1 justify-content-center">
+                                <Button variant="outline-primary" size="sm" onClick={() => openEditBur(b)}>
+                                  <i className="ph ph-pencil" />
+                                </Button>
+                                <Button variant={b.active ? 'outline-warning' : 'outline-success'} size="sm" onClick={() => toggleBur(b.id)}>
+                                  <i className={`ph ph-${b.active ? 'pause' : 'play'}`} />
+                                </Button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </Table>
-                <Button variant="outline-warning" size="sm" onClick={() => openAddBur(div.id)}>
-                  <i className="ph ph-plus me-1" />Ajouter un bureau
-                </Button>
+                {!readOnly && (
+                  <Button variant="outline-warning" size="sm" onClick={() => openAddBur(div.id)}>
+                    <i className="ph ph-plus me-1" />Ajouter un bureau
+                  </Button>
+                )}
               </Accordion.Body>
             </Accordion.Item>
           );

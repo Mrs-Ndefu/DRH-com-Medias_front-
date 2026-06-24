@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import useSWR from 'swr';
+import { fetcher } from 'api/client';
 
 import Badge from 'react-bootstrap/Badge';
 import Card from 'react-bootstrap/Card';
@@ -269,13 +271,23 @@ function MiniCalendrier() {
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { data: stats } = useSWR('/dashboard', fetcher);
   const totalDir = DIRECTIONS.reduce((s, d) => s + d.agents, 0);
+
+  // Surcharger les KPI statiques avec les vraies données si disponibles
+  const kpiData = stats ? [
+    { ...KPI[0], value: parseInt(stats.agents?.total || KPI[0].value),    sub: `${stats.agents?.actifs || 0} en activité` },
+    { ...KPI[1], value: parseInt(stats.presences?.presents || KPI[1].value), sub: `Présents aujourd'hui` },
+    { ...KPI[2], value: parseInt(stats.presences?.absents || KPI[2].value),  sub: `Absents aujourd'hui` },
+    { ...KPI[3], value: parseInt(stats.conges?.en_cours || KPI[3].value),    sub: `${stats.conges?.en_attente_chef || 0} en attente chef` },
+    { ...KPI[4], value: parseInt(stats.recrutement?.offres_ouvertes || KPI[4].value), sub: `Offres ouvertes` },
+  ] : KPI;
 
   return (
     <>
       {/* ── Section 1 : KPI cards ── */}
       <Row className="g-3 mb-4">
-        {KPI.map((kpi) => (
+        {kpiData.map((kpi) => (
           <Col key={kpi.label} xs={12} sm={6} xl>
             <KpiCard kpi={kpi} />
           </Col>

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { api } from 'api/client';
 
 // react-bootstrap
 import Alert from 'react-bootstrap/Alert';
@@ -126,12 +127,15 @@ const INITIAL = {
 // ─── Composant principal ────────────────────────────────────────────────────────
 
 export default function AddEmployee() {
+  const navigate                    = useNavigate();
   const [activeTab,  setActiveTab]  = useState('personal');
   const [form,       setForm]       = useState(INITIAL);
   const [formations, setFormations] = useState([]);
   const [documents,  setDocuments]  = useState({});
   const [empreintes, setEmpreintes] = useState({});
   const [submitted,  setSubmitted]  = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [saveError,  setSaveError]  = useState('');
   const fileRefs = useRef({});
 
   const currentIdx = TABS.findIndex(t => t.id === activeTab);
@@ -189,10 +193,17 @@ export default function AddEmployee() {
     if (fileRefs.current[docId]) fileRefs.current[docId].value = '';
   };
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    // TODO: POST vers l'API RH avec { form, formations, documents, empreintes }
-    console.log({ form, formations, documents, empreintes });
+  const handleSubmit = async () => {
+    setSaveError('');
+    setSaving(true);
+    try {
+      await api.post('/agents', form);
+      setSubmitted(true);
+    } catch (err) {
+      setSaveError(err.message || 'Erreur lors de l\'enregistrement.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ─── Onglet 1 : État civil & Coordonnées ──────────────────────────────────────
@@ -501,6 +512,13 @@ export default function AddEmployee() {
           {/* ── Contenu de l'onglet actif ── */}
           {renderTab()}
 
+          {/* ── Erreur de sauvegarde ── */}
+          {saveError && (
+            <Alert variant="danger" className="mt-3 py-2 small">
+              <i className="ph ph-warning me-2" />{saveError}
+            </Alert>
+          )}
+
           {/* ── Boutons de navigation ── */}
           <div className="d-flex justify-content-between mt-4 pt-3 border-top">
             <Button
@@ -516,8 +534,11 @@ export default function AddEmployee() {
                 Suivant<i className="ph ph-arrow-right ms-2" />
               </Button>
             ) : (
-              <Button variant="success" onClick={handleSubmit}>
-                <i className="ph ph-check me-2" />Enregistrer le dossier
+              <Button variant="success" onClick={handleSubmit} disabled={saving}>
+                {saving
+                  ? <><span className="spinner-border spinner-border-sm me-2" />Enregistrement…</>
+                  : <><i className="ph ph-check me-2" />Enregistrer le dossier</>
+                }
               </Button>
             )}
           </div>
