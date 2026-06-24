@@ -1,16 +1,20 @@
-import { useParams, Navigate, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import useSWR from 'swr';
 
 // react-bootstrap
+import Alert from 'react-bootstrap/Alert';
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
 import Col from 'react-bootstrap/Col';
 import Nav from 'react-bootstrap/Nav';
 import Row from 'react-bootstrap/Row';
-import { useState } from 'react';
+import Spinner from 'react-bootstrap/Spinner';
 
 // project-imports
 import MainCard from 'components/MainCard';
-import { FAKE_AGENTS } from './data/agents';
+import { fetcher } from 'api/client';
+import { exportAgentFiche } from 'utils/exportAgentPdf';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
 
@@ -52,52 +56,75 @@ const SectionTitle = ({ children }) => (
 // ==============================|| AGENTS — DÉTAILS ||============================== //
 
 export default function AgentDetails() {
-  const { id }        = useParams();
-  const agent          = FAKE_AGENTS.find((a) => a.id === id);
-  const [tab, setTab] = useState('personal');
+  const { id }            = useParams();
+  const [tab, setTab]     = useState('personal');
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  if (!agent) return <Navigate to="/agents" replace />;
+  const { data: agent, error, isLoading } = useSWR(`/agents/${id}`, fetcher);
 
-  const fullName = `${agent.prenom} ${agent.nomFamille}`;
-  const initials = `${agent.prenom[0]}${agent.nomFamille[0]}`;
+  const handlePdf = () => {
+    if (!agent) return;
+    setPdfLoading(true);
+    setTimeout(() => {
+      exportAgentFiche(agent);
+      setPdfLoading(false);
+    }, 50);
+  };
+
+  if (isLoading) return (
+    <div className="text-center py-5">
+      <Spinner animation="border" variant="primary" />
+    </div>
+  );
+
+  if (error) return (
+    <Alert variant="danger">
+      <i className="ph ph-warning me-2" />Agent introuvable ou serveur inaccessible.
+    </Alert>
+  );
+
+  if (!agent) return null;
+
+  const fullName = `${agent.prenom} ${agent.nom_famille}`;
+  const initials = `${agent.prenom?.[0] || ''}${agent.nom_famille?.[0] || ''}`;
 
   const renderPersonal = () => (
     <Row>
       <SectionTitle>Identité</SectionTitle>
-      <InfoRow label="Nom de famille"          value={agent.nomFamille} />
+      <InfoRow label="Nom de famille"          value={agent.nom_famille} />
       <InfoRow label="Prénom(s)"               value={agent.prenom} />
-      <InfoRow label="Prénom secondaire"       value={agent.prenomSecondaire} />
-      <InfoRow label="Nom de jeune fille"      value={agent.nomJeuneFile} />
+      <InfoRow label="Prénom secondaire"       value={agent.prenom_secondaire} />
+      <InfoRow label="Nom de jeune fille"      value={agent.nom_jeune_fille} />
       <InfoRow label="Sexe"                    value={agent.sexe} />
-      <InfoRow label="Date de naissance"       value={fmt(agent.dateNaissance)} />
-      <InfoRow label="Lieu de naissance"       value={agent.lieuNaissance} />
-      <InfoRow label="Pays de naissance"       value={agent.paysNaissance} />
+      <InfoRow label="Date de naissance"       value={fmt(agent.date_naissance)} />
+      <InfoRow label="Lieu de naissance"       value={agent.lieu_naissance} />
+      <InfoRow label="Pays de naissance"       value={agent.pays_naissance} />
       <InfoRow label="Nationalité"             value={agent.nationalite} />
-      <InfoRow label="Situation familiale"     value={agent.situationFamiliale} />
-      <InfoRow label="Nombre d'enfants"        value={agent.nbEnfants} />
-      <InfoRow label="Groupe sanguin"          value={agent.groupeSanguin} />
+      <InfoRow label="Situation familiale"     value={agent.situation_familiale} />
+      <InfoRow label="Nombre d'enfants"        value={agent.nb_enfants} />
+      <InfoRow label="Groupe sanguin"          value={agent.groupe_sanguin} />
 
       <SectionTitle>Pièce d'identité</SectionTitle>
-      <InfoRow label="Type de pièce"   value={agent.typePiece} />
-      <InfoRow label="Numéro"          value={agent.numeroPiece} />
-      <InfoRow label="Date d'expiration" value={fmt(agent.dateExpiration)} />
+      <InfoRow label="Type de pièce"     value={agent.type_piece} />
+      <InfoRow label="Numéro"            value={agent.numero_piece} />
+      <InfoRow label="Date d'expiration" value={fmt(agent.date_expiration_piece)} />
 
       <SectionTitle>Adresse</SectionTitle>
-      <InfoRow label="Rue / Quartier" value={agent.adresseRue} wide />
-      <InfoRow label="Ville"          value={agent.adresseVille} />
-      <InfoRow label="Région"         value={agent.adresseRegion} />
-      <InfoRow label="Pays"           value={agent.adressePays} />
+      <InfoRow label="Rue / Quartier" value={agent.adresse_rue} wide />
+      <InfoRow label="Ville"          value={agent.adresse_ville} />
+      <InfoRow label="Région"         value={agent.adresse_region} />
+      <InfoRow label="Pays"           value={agent.adresse_pays} />
 
       <SectionTitle>Coordonnées</SectionTitle>
-      <InfoRow label="Téléphone mobile"      value={agent.telephoneMobile} />
-      <InfoRow label="Téléphone fixe"        value={agent.telephoneFixe} />
-      <InfoRow label="Email professionnel"   value={agent.emailPro} />
-      <InfoRow label="Email personnel"       value={agent.emailPersonnel} />
+      <InfoRow label="Téléphone mobile"      value={agent.telephone_mobile} />
+      <InfoRow label="Téléphone fixe"        value={agent.telephone_fixe} />
+      <InfoRow label="Email professionnel"   value={agent.email_pro} />
+      <InfoRow label="Email personnel"       value={agent.email_personnel} />
 
       <SectionTitle>Contact d'urgence</SectionTitle>
-      <InfoRow label="Nom"       value={agent.urgenceNom} />
-      <InfoRow label="Relation"  value={agent.urgenceRelation} />
-      <InfoRow label="Téléphone" value={agent.urgenceTelephone} />
+      <InfoRow label="Nom"       value={agent.urgence_nom} />
+      <InfoRow label="Relation"  value={agent.urgence_relation} />
+      <InfoRow label="Téléphone" value={agent.urgence_telephone} />
     </Row>
   );
 
@@ -113,50 +140,49 @@ export default function AgentDetails() {
       <InfoRow label="Indice"        value={agent.indice} />
 
       <SectionTitle>Recrutement & Nomination</SectionTitle>
-      <InfoRow label="Date de recrutement"    value={fmt(agent.dateRecrutement)} />
-      <InfoRow label="Date prise de fonction" value={fmt(agent.datePriseFonction)} />
-      <InfoRow label="Date de titularisation" value={fmt(agent.dateTitularisation)} />
-      <InfoRow label="Mode de recrutement"    value={agent.modeRecrutement} />
-      <InfoRow label="N° Arrêté / Décision"  value={agent.numeroDecision} />
-      <InfoRow label="Date de la décision"    value={fmt(agent.dateDecision)} />
-      <InfoRow label="Référence J.O."         value={agent.referenceJO} />
-      <InfoRow label="Ministère d'origine"    value={agent.ministereDOrigine} wide />
+      <InfoRow label="Date de recrutement"    value={fmt(agent.date_recrutement)} />
+      <InfoRow label="Date prise de fonction" value={fmt(agent.date_prise_fonction)} />
+      <InfoRow label="Date de titularisation" value={fmt(agent.date_titularisation)} />
+      <InfoRow label="Mode de recrutement"    value={agent.mode_recrutement} />
+      <InfoRow label="N° Arrêté / Décision"  value={agent.numero_decision} />
+      <InfoRow label="Date de la décision"    value={fmt(agent.date_decision)} />
+      <InfoRow label="Référence J.O."         value={agent.reference_jo} />
+      <InfoRow label="Ministère d'origine"    value={agent.ministere_origine} wide />
 
       <SectionTitle>Formation principale</SectionTitle>
-      <InfoRow label="Niveau d'études"   value={agent.niveauEtudes} />
+      <InfoRow label="Niveau d'études"   value={agent.niveau_etudes} />
       <InfoRow label="Diplôme"           value={agent.diplome} />
       <InfoRow label="Spécialité"        value={agent.specialite} />
       <InfoRow label="Établissement"     value={agent.etablissement} />
-      <InfoRow label="Pays"              value={agent.paysFormation} />
-      <InfoRow label="Année"             value={agent.anneeObtention} />
+      <InfoRow label="Pays"              value={agent.pays_formation} />
+      <InfoRow label="Année"             value={agent.annee_obtention} />
 
       <SectionTitle>Contrat & Statut</SectionTitle>
-      <InfoRow label="Type de contrat"          value={agent.typeContrat} />
+      <InfoRow label="Type de contrat"          value={agent.type_contrat} />
       <InfoRow label="Situation administrative" value={
-        agent.situationAdmin ? (
-          <Badge bg={INFO_STATUT[agent.situationAdmin] || 'secondary'}>{agent.situationAdmin}</Badge>
+        agent.situation_admin ? (
+          <Badge bg={INFO_STATUT[agent.situation_admin] || 'secondary'}>{agent.situation_admin}</Badge>
         ) : '—'
       } />
 
       <SectionTitle>Rémunération & Banque</SectionTitle>
-      <InfoRow label="N° CNSS"             value={agent.numeroCnss} />
-      <InfoRow label="N° Caisse de retraite" value={agent.numeroRetraite} />
-      <InfoRow label="RIB / IBAN"          value={agent.rib} />
-      <InfoRow label="Banque"              value={agent.banque} />
+      <InfoRow label="N° CNSS"               value={agent.numero_cnss} />
+      <InfoRow label="N° Caisse de retraite" value={agent.numero_retraite} />
+      <InfoRow label="RIB / IBAN"            value={agent.rib} />
+      <InfoRow label="Banque"                value={agent.banque} />
     </Row>
   );
 
   const renderAffectations = () => (
     <Row>
       <SectionTitle>Affectation actuelle</SectionTitle>
-      <InfoRow label="Ministère"       value={agent.ministereAffectation} wide />
-      <InfoRow label="Direction"       value={agent.direction} />
-      <InfoRow label="Sous-direction"  value={agent.sousDirection} />
+      <InfoRow label="Ministère"       value={agent.ministere_affectation} wide />
+      <InfoRow label="Direction"       value={agent.direction_libelle} />
       <InfoRow label="Service"         value={agent.service} />
       <InfoRow label="Bureau"          value={agent.bureau} />
       <InfoRow label="Poste"           value={agent.poste} />
-      <InfoRow label="Lieu"            value={agent.lieuAffectation} />
-      <InfoRow label="Région"          value={agent.regionAffectation} />
+      <InfoRow label="Lieu"            value={agent.lieu_affectation} />
+      <InfoRow label="Région"          value={agent.region_affectation} />
 
       <SectionTitle>Historique des affectations</SectionTitle>
       <Col xs={12}>
@@ -185,17 +211,17 @@ export default function AgentDetails() {
         <div className="d-flex align-items-center gap-3">
           <div className="border-start border-3 border-success ps-3 py-1">
             <div className="fw-semibold">Recrutement</div>
-            <small className="text-muted">{fmt(agent.dateRecrutement)} — {agent.modeRecrutement}</small>
+            <small className="text-muted">{fmt(agent.date_recrutement)} — {agent.mode_recrutement}</small>
             <div className="text-muted small">{agent.corps}</div>
           </div>
         </div>
       </Col>
-      {agent.dateTitularisation && (
+      {agent.date_titularisation && (
         <Col xs={12} className="mb-3">
           <div className="d-flex align-items-center gap-3">
             <div className="border-start border-3 border-primary ps-3 py-1">
               <div className="fw-semibold">Titularisation</div>
-              <small className="text-muted">{fmt(agent.dateTitularisation)}</small>
+              <small className="text-muted">{fmt(agent.date_titularisation)}</small>
             </div>
           </div>
         </Col>
@@ -267,18 +293,18 @@ export default function AgentDetails() {
             </div>
             <h5 className="mb-1">{fullName}</h5>
             <p className="text-muted small mb-2">{agent.grade}</p>
-            <Badge bg={INFO_STATUT[agent.situationAdmin] || 'secondary'} className="mb-3">
-              {agent.situationAdmin}
+            <Badge bg={INFO_STATUT[agent.situation_admin] || 'secondary'} className="mb-3">
+              {agent.situation_admin}
             </Badge>
 
             <div className="text-start border-top pt-3 mt-1">
               {[
                 { icon: 'ph-identification-card', label: 'Matricule', val: agent.matricule },
-                { icon: 'ph-buildings',           label: 'Ministère', val: agent.ministereAffectation },
+                { icon: 'ph-buildings',           label: 'Ministère', val: agent.ministere_affectation },
                 { icon: 'ph-briefcase',           label: 'Poste',     val: agent.poste },
-                { icon: 'ph-map-pin',             label: 'Lieu',      val: agent.lieuAffectation },
-                { icon: 'ph-phone',               label: 'Mobile',    val: agent.telephoneMobile },
-                { icon: 'ph-envelope',            label: 'Email',     val: agent.emailPro },
+                { icon: 'ph-map-pin',             label: 'Lieu',      val: agent.lieu_affectation },
+                { icon: 'ph-phone',               label: 'Mobile',    val: agent.telephone_mobile },
+                { icon: 'ph-envelope',            label: 'Email',     val: agent.email_pro },
               ].map(({ icon, label, val }) => (
                 val ? (
                   <div key={label} className="d-flex gap-2 mb-2 align-items-start">
@@ -293,6 +319,18 @@ export default function AgentDetails() {
             </div>
 
             <div className="d-grid gap-2 mt-3">
+              <Button
+                variant="outline-danger"
+                size="sm"
+                disabled={pdfLoading}
+                onClick={handlePdf}
+                title="Télécharger la fiche agent en PDF"
+              >
+                {pdfLoading
+                  ? <><Spinner size="sm" animation="border" className="me-1" />Génération…</>
+                  : <><i className="ph ph-file-pdf me-2" />Fiche PDF</>
+                }
+              </Button>
               <Button as={Link} to={`/agents/${id}/edit`} variant="primary" size="sm">
                 <i className="ph ph-pencil me-2" />Modifier le dossier
               </Button>
@@ -311,7 +349,7 @@ export default function AgentDetails() {
             <div className="d-flex align-items-center gap-2">
               <i className="ph ph-folder-open text-primary" />
               <span>Dossier de l'agent</span>
-              <Badge bg="light" text="dark" className="ms-2">{agent.typeContrat}</Badge>
+              <Badge bg="light" text="dark" className="ms-2">{agent.type_contrat}</Badge>
             </div>
           }
         >

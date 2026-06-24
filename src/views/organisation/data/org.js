@@ -13,8 +13,8 @@ export const NIVEAUX_HIERARCHIQUES = [
 ];
 
 export const MINISTERE = {
-  nom: 'Ministère de la Fonction Publique et de la Réforme de l\'État',
-  sigle: 'MFPRE',
+  nom: 'Ministère de la Communication et des Médias',
+  sigle: 'MCM',
   ministre: 'M. Idrissa Coulibaly',
   secretaireGeneral: 'M. Mamadou Koné',
   adresse: 'BP 1234, Bamako — République du Mali',
@@ -52,7 +52,7 @@ export const FAKE_SG_BUREAUX = [
 // ── Directions ───────────────────────────────────────────────────────────────
 
 export const FAKE_DIRECTIONS = [
-  { id: 'DIR001', code: 'DRH', nom: 'Direction des Ressources Humaines', sigle: 'DRH', chef: 'Mamadou Koné', chefMatricule: '2019045', effectif: 45, active: true, dateCreation: '2010-03-01', description: 'Gestion du personnel de la fonction publique' },
+  { id: 'DIR001', code: 'DRH', nom: 'Direction des Ressources Humaines', sigle: 'DRH', chef: 'Mamadou Koné', chefMatricule: '2019045', effectif: 45, active: true, dateCreation: '2010-03-01', description: 'Gestion du personnel du ministère' },
   { id: 'DIR002', code: 'DAF', nom: 'Direction des Affaires Financières', sigle: 'DAF', chef: 'Jean-Baptiste Yao', chefMatricule: '2018033', effectif: 30, active: true, dateCreation: '2010-03-01', description: 'Gestion des finances et du budget' },
   { id: 'DIR003', code: 'DPL', nom: 'Direction de la Planification', sigle: 'DPL', chef: 'Ndeye Sow', chefMatricule: '2020078', effectif: 18, active: true, dateCreation: '2012-06-01', description: 'Planification et études stratégiques' },
   { id: 'DIR004', code: 'DIT', nom: "Direction de l'Informatique et des Télécommunications", sigle: 'DIT', chef: '', chefMatricule: '', effectif: 22, active: true, dateCreation: '2015-01-01', description: 'Systèmes d\'information et infrastructure numérique' },

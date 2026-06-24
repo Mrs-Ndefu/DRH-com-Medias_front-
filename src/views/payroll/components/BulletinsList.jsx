@@ -9,6 +9,7 @@ import Modal from 'react-bootstrap/Modal';
 import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
+import { useAuth } from 'contexts/AuthContext';
 import { MOIS_NOMS, STATUTS_BULLETIN } from '../data/payroll';
 
 const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n)) + ' FCFA';
@@ -30,8 +31,8 @@ function BulletinDetail({ b, onClose }) {
           {/* En-tête employeur / employé */}
           <div className="d-flex justify-content-between p-4 border-bottom bg-light">
             <div>
-              <div className="fw-bold text-primary">Ministère de la Fonction Publique</div>
-              <div className="small text-muted">et de la Réforme de l'État</div>
+              <div className="fw-bold text-primary">Ministère de la Communication et des Médias</div>
+              <div className="small text-muted">République du Mali</div>
               <div className="small text-muted">BP 1234, Bamako — République du Mali</div>
             </div>
             <div className="text-end">
@@ -149,6 +150,8 @@ function BulletinDetail({ b, onClose }) {
 // ── Liste des bulletins ───────────────────────────────────────────────────────
 
 export default function BulletinsList({ bulletins, setBulletins }) {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'SG';
   const [detail,      setDetail]      = useState(null);
   const [filterSt,    setFilterSt]    = useState('');
   const [filterDir,   setFilterDir]   = useState('');
@@ -197,14 +200,16 @@ export default function BulletinsList({ bulletins, setBulletins }) {
             {Object.entries(STATUTS_BULLETIN).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
           </Form.Select>
         </div>
-        <div className="d-flex gap-2">
-          <Button variant="outline-primary" size="sm" onClick={validerTous}>
-            <i className="ph ph-check-circle me-1" />Valider tous les calculés
-          </Button>
-          <Button variant="primary" size="sm">
-            <i className="ph ph-paper-plane-tilt me-1" />Générer bulletins
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="d-flex gap-2">
+            <Button variant="outline-primary" size="sm" onClick={validerTous}>
+              <i className="ph ph-check-circle me-1" />Valider tous les calculés
+            </Button>
+            <Button variant="primary" size="sm">
+              <i className="ph ph-paper-plane-tilt me-1" />Générer bulletins
+            </Button>
+          </div>
+        )}
       </div>
 
       <Table hover responsive className="align-middle">
@@ -252,12 +257,12 @@ export default function BulletinsList({ bulletins, setBulletins }) {
                     <Button variant="outline-primary" size="sm" onClick={() => setDetail(b)} title="Voir le bulletin">
                       <i className="ph ph-eye" />
                     </Button>
-                    {b.statut === 'CALCULE' && (
+                    {!readOnly && b.statut === 'CALCULE' && (
                       <Button variant="outline-success" size="sm" title="Valider" onClick={() => changeStatut(b.id, 'VALIDE')}>
                         <i className="ph ph-check" />
                       </Button>
                     )}
-                    {b.statut === 'VALIDE' && (
+                    {!readOnly && b.statut === 'VALIDE' && (
                       <Button variant="outline-info" size="sm" title="Marquer viré" onClick={() => changeStatut(b.id, 'VIRE')}>
                         <i className="ph ph-paper-plane-tilt" />
                       </Button>

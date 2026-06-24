@@ -10,35 +10,49 @@ import NavGroup from './NavGroup';
 import { MenuOrientation } from 'config';
 import menuItems from 'menu-items';
 import useConfig from 'hooks/useConfig';
+import { useAuth } from 'contexts/AuthContext';
 
 // ==============================|| NAVIGATION ||============================== //
+
+function filterByRole(items, userRole) {
+  return items
+    .filter(item => !item.roles || item.roles.includes(userRole))
+    .map(item => {
+      if (!item.children) return item;
+      const filtered = filterByRole(item.children, userRole);
+      return { ...item, children: filtered };
+    })
+    .filter(item => !item.children || item.children.length > 0);
+}
 
 export default function Navigation({ selectedItems, setSelectedItems, setSelectTab }) {
   const [selectedID, setSelectedID] = useState('');
   const [selectedLevel, setSelectedLevel] = useState(0);
   const { menuOrientation } = useConfig();
+  const { user } = useAuth();
+
+  const userRole = user?.role || 'RH';
+  const filteredItems = filterByRole(menuItems.items, userRole);
 
   const lastItem = null;
-  let lastItemIndex = menuItems.items.length - 1;
+  let lastItemIndex = filteredItems.length - 1;
   let remItems = [];
   let lastItemId;
 
-  if (lastItem && lastItem < menuItems.items.length) {
-    lastItemId = menuItems.items[lastItem - 1].id;
+  if (lastItem && lastItem < filteredItems.length) {
+    lastItemId = filteredItems[lastItem - 1].id;
     lastItemIndex = lastItem - 1;
-    remItems = menuItems.items.slice(lastItem - 1, menuItems.items.length).map((item) => ({
-      id: item.id, // Ensure id is included
-      type: item.type, // Add the missing type field
+    remItems = filteredItems.slice(lastItem - 1, filteredItems.length).map((item) => ({
+      id: item.id,
+      type: item.type,
       title: item.title,
       elements: item.children,
       icon: item.icon,
-      ...(item.url && {
-        url: item.url
-      })
+      ...(item.url && { url: item.url })
     }));
   }
 
-  const navGroups = menuItems.items.slice(0, lastItemIndex + 1).map((item, index) => {
+  const navGroups = filteredItems.slice(0, lastItemIndex + 1).map((item, index) => {
     switch (item.type) {
       case 'group':
         if (item.url && item.id !== lastItemId) {

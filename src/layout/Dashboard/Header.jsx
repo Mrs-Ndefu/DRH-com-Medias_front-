@@ -16,6 +16,7 @@ import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 import useConfig from 'hooks/useConfig';
 import { setResolvedTheme } from 'components/setResolvedTheme';
 import { ThemeMode } from 'config';
+import { useAuth } from 'contexts/AuthContext';
 
 // assets
 import Img2 from 'assets/images/user/avatar-2.png';
@@ -24,6 +25,7 @@ import Img2 from 'assets/images/user/avatar-2.png';
 
 export default function Header() {
   const { i18n, onChangeLocalization, onChangeMode, mode } = useConfig();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     setResolvedTheme(mode);
@@ -130,9 +132,9 @@ export default function Header() {
                 </Dropdown.Item>
                
           
-                <Dropdown.Item>
+                <Dropdown.Item onClick={logout}>
                   <i className="ph ph-power" />
-                  Logout
+                  Se déconnecter
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -169,8 +171,8 @@ export default function Header() {
                       <Image src={Img2} alt="user-avatar" className="user-avatar wid-35" roundedCircle />
                     </div>
                     <Stack gap={1}>
-                      <h6 className="text-white mb-0">Administrateur RH</h6>
-                      <span className="text-white text-opacity-75">admin@rh.local</span>
+                      <h6 className="text-white mb-0">{user ? `${user.prenom} ${user.nom}` : 'Administrateur RH'}</h6>
+                      <span className="text-white text-opacity-75">{user?.email || 'admin@rh.local'}</span>
                     </Stack>
                   </Stack>
                 </Dropdown.Header>
@@ -190,9 +192,9 @@ export default function Header() {
                       Change Password
                     </Dropdown.Item>
                     <div className="d-grid my-2">
-                      <Button>
+                      <Button variant="danger" onClick={logout}>
                         <i className="ph ph-sign-out align-middle me-2" />
-                        Logout
+                        Se déconnecter
                       </Button>
                     </div>
                   </div>

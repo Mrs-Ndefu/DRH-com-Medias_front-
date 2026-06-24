@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import useSWR from 'swr';
 
 // react-bootstrap
 import Badge from 'react-bootstrap/Badge';
@@ -9,10 +10,14 @@ import Form from 'react-bootstrap/Form';
 import InputGroup from 'react-bootstrap/InputGroup';
 import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
+import Spinner from 'react-bootstrap/Spinner';
+import Alert from 'react-bootstrap/Alert';
 
 // project-imports
 import MainCard from 'components/MainCard';
-import { FAKE_AGENTS, SITUATIONS_ADMIN } from './data/agents';
+import { fetcher } from 'api/client';
+import { SITUATIONS_ADMIN } from './data/agents';
+import { exportAgentsToExcel } from 'utils/exportExcel';
 
 const STATUS_COLORS = {
   'En activité':        'success',
@@ -30,17 +35,26 @@ export default function AgentsList() {
   const [search,     setSearch]     = useState('');
   const [filterStat, setFilterStat] = useState('');
 
-  const filtered = FAKE_AGENTS.filter((a) => {
-    const q  = search.toLowerCase();
-    const ok = !search ||
-      `${a.prenom} ${a.nomFamille}`.toLowerCase().includes(q) ||
-      a.matricule.includes(q) ||
-      a.poste?.toLowerCase().includes(q) ||
-      a.service?.toLowerCase().includes(q);
-    return ok && (!filterStat || a.situationAdmin === filterStat);
-  });
+  const query = new URLSearchParams();
+  if (search)     query.set('search', search);
+  if (filterStat) query.set('situation_admin', filterStat);
+  query.set('limit', '100');
 
-  const activeCount = FAKE_AGENTS.filter((a) => a.situationAdmin === 'En activité').length;
+  const { data, error, isLoading } = useSWR(`/agents?${query}`, fetcher);
+
+  const agents      = data?.data || [];
+  const filtered    = agents;
+  const activeCount = agents.filter((a) => a.situation_admin === 'En activité').length;
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = () => {
+    if (!agents.length) return;
+    setExporting(true);
+    setTimeout(() => {
+      exportAgentsToExcel(agents);
+      setExporting(false);
+    }, 50);
+  };
 
   return (
     <Row>
@@ -50,16 +64,45 @@ export default function AgentsList() {
             <div className="d-flex align-items-center gap-3">
               <i className="ph ph-users f-24 text-primary" />
               <span>Agents de l'État</span>
-              <Badge bg="primary">{FAKE_AGENTS.length} agents</Badge>
+              <Badge bg="primary">{agents.length} agents</Badge>
               <Badge bg="success">{activeCount} en activité</Badge>
             </div>
           }
           secondary={
-            <Button as={Link} to="/agents/create" size="sm" variant="primary">
-              <i className="ph ph-user-plus me-2" />Nouvel agent
-            </Button>
+            <div className="d-flex gap-2">
+              <Button
+                size="sm"
+                variant="outline-success"
+                disabled={exporting || !agents.length}
+                onClick={handleExportExcel}
+                title="Exporter la liste au format Excel"
+              >
+                {exporting
+                  ? <Spinner size="sm" animation="border" className="me-1" />
+                  : <i className="ph ph-file-xls me-1" />
+                }
+                Excel
+              </Button>
+              <Button as={Link} to="/agents/create" size="sm" variant="primary">
+                <i className="ph ph-user-plus me-2" />Nouvel agent
+              </Button>
+            </div>
           }
         >
+          {/* ── États de chargement ── */}
+          {isLoading && (
+            <div className="text-center py-4">
+              <Spinner animation="border" variant="primary" size="sm" className="me-2" />
+              <span className="text-muted small">Chargement…</span>
+            </div>
+          )}
+          {error && (
+            <Alert variant="danger" className="small py-2">
+              <i className="ph ph-warning me-2" />
+              Impossible de contacter le serveur. Vérifiez que le backend est démarré sur le port 5000.
+            </Alert>
+          )}
+
           {/* ── Filtres ── */}
           <Row className="g-2 mb-4 align-items-end">
             <Col xs={12} md={5}>
@@ -116,27 +159,24 @@ export default function AgentsList() {
                           className="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
                           style={{ width: 36, height: 36, fontSize: 13, fontWeight: 600, color: 'var(--bs-primary)' }}
                         >
-                          {a.prenom[0]}{a.nomFamille[0]}
+                          {a.prenom?.[0]}{a.nom_famille?.[0]}
                         </div>
                         <div>
-                          <div className="fw-semibold">{a.prenom} {a.nomFamille}</div>
+                          <div className="fw-semibold">{a.prenom} {a.nom_famille}</div>
                           <small className="text-muted">{a.grade}</small>
                         </div>
                       </div>
                     </td>
                     <td className="small">{a.poste || '—'}</td>
                     <td className="small text-muted">
-                      {a.direction || a.service || '—'}
+                      {a.direction_libelle || '—'}
                     </td>
                     <td className="small">
-                      {a.corps && <div>{a.corps}</div>}
-                      {a.categorie && (
-                        <Badge bg="light" text="dark">Cat. {a.categorie} — Cl. {a.classe}</Badge>
-                      )}
+                      <Badge bg="light" text="dark">Cat. {a.categorie}</Badge>
                     </td>
                     <td className="text-center">
-                      <Badge bg={STATUS_COLORS[a.situationAdmin] || 'secondary'}>
-                        {a.situationAdmin}
+                      <Badge bg={STATUS_COLORS[a.situation_admin] || 'secondary'}>
+                        {a.situation_admin}
                       </Badge>
                     </td>
                     <td className="text-center">
