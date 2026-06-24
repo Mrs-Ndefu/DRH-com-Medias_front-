@@ -30,6 +30,9 @@ const RecruitmentPage  = Loadable(lazy(() => import('views/recruitment')));
 const UsersList    = Loadable(lazy(() => import('views/admin/UsersList')));
 const ArchivesPage = Loadable(lazy(() => import('views/archives')));
 
+// render - settings
+const ProfileSettings = Loadable(lazy(() => import('views/settings/Profile')));
+
 // render - maintenance
 const ErrorPage        = Loadable(lazy(() => import('views/maintenance/Error')));
 const ComingSoonPage   = Loadable(lazy(() => import('views/maintenance/ComingSoon')));
@@ -93,7 +96,8 @@ const PagesRoutes = {
         { path: 'payroll',      element: <RoleGuard roles={PAY_ROLES}><PayrollPage /></RoleGuard>           },
         { path: 'recruitment',  element: <RoleGuard roles={REC_ROLES}><RecruitmentPage /></RoleGuard>      },
         { path: 'admin/users',  element: <RoleGuard roles={ADMIN_ROLES}><UsersList /></RoleGuard>          },
-        { path: 'archives',     element: <RoleGuard roles={ARCHIVES_ROLES}><ArchivesPage /></RoleGuard>    }
+        { path: 'archives',     element: <RoleGuard roles={ARCHIVES_ROLES}><ArchivesPage /></RoleGuard>    },
+        { path: 'settings',     element: <ProfileSettings /> }
       ]
     },
     {

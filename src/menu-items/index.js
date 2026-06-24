@@ -125,6 +125,23 @@ const admin = {
   ]
 };
 
-const menuItems = { items: [hr, archives, admin] };
+const settings = {
+  id: 'group-settings',
+  title: 'settings',
+  type: 'group',
+  roles: ['ADMIN', 'DRH', 'SUPER_USER', 'RH', 'CHEF', 'SG'],
+  children: [
+    {
+      id: 'settings',
+      title: 'settings',
+      type: 'item',
+      url: '/settings',
+      icon: 'ph ph-gear',
+      roles: ['ADMIN', 'DRH', 'SUPER_USER', 'RH', 'CHEF', 'SG']
+    }
+  ]
+};
+
+const menuItems = { items: [hr, archives, admin, settings] };
 
 export default menuItems;

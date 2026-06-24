@@ -56,7 +56,7 @@ function Avatar({ user, size = 34 }) {
   );
 }
 
-const BLANK_CREATE = { prenom: '', nom: '', email: '', role: 'RH', password: '', confirm: '' };
+const BLANK_CREATE = { prenom: '', nom: '', email: '', role: 'RH' };
 
 async function uploadPhoto(userId, file) {
   const token = localStorage.getItem('sirh_token');
@@ -85,9 +85,9 @@ export default function UsersList() {
   const [createForm,   setCreateForm]   = useState(BLANK_CREATE);
   const [photoFile,    setPhotoFile]    = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [showPwd,      setShowPwd]      = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [alert,        setAlert]        = useState(null);
+  const [newUserPwd,   setNewUserPwd]   = useState(null); // { prenom, nom, email, motDePasse, emailEnvoye }
   const photoInputRef = useRef(null);
 
   const refresh = () => mutate(USERS_KEY);
@@ -129,7 +129,6 @@ export default function UsersList() {
     setCreateForm(BLANK_CREATE);
     setPhotoFile(null);
     setPhotoPreview(null);
-    setShowPwd(false);
     setShowCreate(true);
   };
 
@@ -143,27 +142,27 @@ export default function UsersList() {
   };
 
   const submitCreate = async () => {
-    if (!createForm.prenom || !createForm.nom || !createForm.email || !createForm.password) {
-      return setAlert({ type: 'danger', msg: 'Tous les champs sont obligatoires.' });
-    }
-    if (createForm.password !== createForm.confirm) {
-      return setAlert({ type: 'danger', msg: 'Les mots de passe ne correspondent pas.' });
-    }
-    if (createForm.password.length < 6) {
-      return setAlert({ type: 'danger', msg: 'Le mot de passe doit faire au moins 6 caractères.' });
+    if (!createForm.prenom || !createForm.nom || !createForm.email) {
+      return setAlert({ type: 'danger', msg: 'Prénom, nom et email sont obligatoires.' });
     }
     setSaving(true);
     try {
       const res = await api.post('/auth/register', {
         prenom: createForm.prenom, nom: createForm.nom,
-        email: createForm.email, role: createForm.role, password: createForm.password,
+        email: createForm.email, role: createForm.role,
       });
       if (photoFile && res.user?.id) {
         await uploadPhoto(res.user.id, photoFile).catch(() => {});
       }
       refresh();
       setShowCreate(false);
-      setAlert({ type: 'success', msg: `Compte créé pour ${createForm.prenom} ${createForm.nom}.` });
+      setNewUserPwd({
+        prenom: createForm.prenom,
+        nom: createForm.nom,
+        email: createForm.email,
+        motDePasse: res.motDePasse,
+        emailEnvoye: res.emailEnvoye,
+      });
     } catch (e) {
       setAlert({ type: 'danger', msg: e.message || 'Erreur lors de la création.' });
     } finally { setSaving(false); }
@@ -408,30 +407,10 @@ export default function UsersList() {
               </Form.Group>
             </Col>
             <Col xs={12}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">Mot de passe <span className="text-danger">*</span></Form.Label>
-                <div className="input-group input-group-sm">
-                  <span className="input-group-text"><i className="ph ph-lock" /></span>
-                  <Form.Control type={showPwd ? 'text' : 'password'} value={createForm.password}
-                    onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))}
-                    placeholder="Min. 6 caractères" />
-                  <button type="button" className="btn btn-outline-secondary btn-sm"
-                    onClick={() => setShowPwd(v => !v)} tabIndex={-1}>
-                    <i className={`ph ${showPwd ? 'ph-eye-slash' : 'ph-eye'}`} />
-                  </button>
-                </div>
-              </Form.Group>
-            </Col>
-            <Col xs={12}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">Confirmer le mot de passe <span className="text-danger">*</span></Form.Label>
-                <div className="input-group input-group-sm">
-                  <span className="input-group-text"><i className="ph ph-lock-key" /></span>
-                  <Form.Control type={showPwd ? 'text' : 'password'} value={createForm.confirm}
-                    onChange={e => setCreateForm(p => ({ ...p, confirm: e.target.value }))}
-                    placeholder="Répétez le mot de passe" />
-                </div>
-              </Form.Group>
+              <div className="alert alert-info py-2 small mb-0 d-flex align-items-center gap-2">
+                <i className="ph ph-key flex-shrink-0" />
+                Un mot de passe sécurisé sera généré automatiquement et envoyé à l'utilisateur par email.
+              </div>
             </Col>
           </Row>
         </Modal.Body>
@@ -441,6 +420,64 @@ export default function UsersList() {
             {saving
               ? <><Spinner size="sm" className="me-1" />Création…</>
               : <><i className="ph ph-user-plus me-1" />Créer le compte</>}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ── Modal identifiants générés ── */}
+      <Modal show={!!newUserPwd} onHide={() => setNewUserPwd(null)} centered>
+        <Modal.Header closeButton className="bg-success text-white">
+          <Modal.Title className="fs-6">
+            <i className="ph ph-check-circle me-2" />Compte créé avec succès
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="mb-3">
+            Le compte de <strong>{newUserPwd?.prenom} {newUserPwd?.nom}</strong> a été créé.
+          </p>
+
+          {newUserPwd?.emailEnvoye ? (
+            <div className="alert alert-success d-flex align-items-center gap-2 py-2 small">
+              <i className="ph ph-envelope-simple-check flex-shrink-0" />
+              Email envoyé à <strong>{newUserPwd?.email}</strong> avec les identifiants.
+            </div>
+          ) : (
+            <div className="alert alert-warning d-flex align-items-center gap-2 py-2 small">
+              <i className="ph ph-warning flex-shrink-0" />
+              Email non envoyé (SMTP non configuré). Communiquez ces identifiants manuellement.
+            </div>
+          )}
+
+          <div className="bg-light border rounded p-3">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <small className="text-muted">Email</small>
+              <strong className="small">{newUserPwd?.email}</strong>
+            </div>
+            <hr className="my-2" />
+            <div className="d-flex justify-content-between align-items-center">
+              <small className="text-muted">Mot de passe</small>
+              <div className="d-flex align-items-center gap-2">
+                <code className="fs-5 text-primary fw-bold">{newUserPwd?.motDePasse}</code>
+                <button
+                  className="btn btn-outline-secondary btn-sm py-0 px-2"
+                  title="Copier"
+                  onClick={() => {
+                    navigator.clipboard.writeText(newUserPwd?.motDePasse || '');
+                  }}
+                >
+                  <i className="ph ph-copy" />
+                </button>
+              </div>
+            </div>
+          </div>
+          <p className="text-muted mt-3 mb-0 small">
+            <i className="ph ph-info me-1" />
+            L'utilisateur pourra changer ce mot de passe depuis <strong>Paramètres → Mon profil</strong>.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="success" onClick={() => setNewUserPwd(null)}>
+            <i className="ph ph-check me-2" />Compris
           </Button>
         </Modal.Footer>
       </Modal>

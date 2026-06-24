@@ -231,6 +231,11 @@ export default function Header() {
                 </Dropdown.Header>
                 <div className="dropdown-body">
                   <div className="profile-notification-scroll position-relative" style={{ maxHeight: 'calc(100vh - 225px)' }}>
+                    <div className="px-2 pt-2">
+                      <Link to="/settings" className="btn btn-outline-primary w-100 mb-2 text-start btn-sm">
+                        <i className="ph ph-gear align-middle me-2" />Mon profil &amp; Paramètres
+                      </Link>
+                    </div>
                     <div className="d-grid my-2 px-2">
                       <Button variant="danger" onClick={logout}>
                         <i className="ph ph-sign-out align-middle me-2" />
