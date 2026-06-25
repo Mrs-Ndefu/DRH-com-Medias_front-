@@ -2,6 +2,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 
 import Badge   from 'react-bootstrap/Badge';
+import Button  from 'react-bootstrap/Button';
 import Col     from 'react-bootstrap/Col';
 import Form    from 'react-bootstrap/Form';
 import Row     from 'react-bootstrap/Row';
@@ -10,6 +11,24 @@ import Table   from 'react-bootstrap/Table';
 
 import MainCard from 'components/MainCard';
 import { fetcher } from 'api/client';
+
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
+
+async function downloadExport(format, date) {
+  const token = localStorage.getItem('sirh_token');
+  const url   = `${API_BASE}/api/presences/export/${format}?date=${date}`;
+  const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Erreur export ${format.toUpperCase()}`);
+  const blob     = await res.blob();
+  const blobUrl  = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href         = blobUrl;
+  a.download     = `presences_${date}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -38,7 +57,24 @@ const STATUT = {
 // ==============================|| POINTAGE — RAPPORT ||============================== //
 
 export default function AttendanceReport() {
-  const [dateFilter, setDateFilter] = useState(todayStr());
+  const [dateFilter,   setDateFilter]   = useState(todayStr());
+  const [exportingXls, setExportingXls] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportErr,    setExportErr]    = useState(null);
+
+  const handleExport = async (format) => {
+    setExportErr(null);
+    if (format === 'excel') setExportingXls(true);
+    else                    setExportingPdf(true);
+    try {
+      await downloadExport(format, dateFilter);
+    } catch (err) {
+      setExportErr(err.message);
+    } finally {
+      if (format === 'excel') setExportingXls(false);
+      else                    setExportingPdf(false);
+    }
+  };
 
   const { data, isLoading } = useSWR(`/presences?date=${dateFilter}`, fetcher, {
     refreshInterval: 60000,
@@ -60,7 +96,7 @@ export default function AttendanceReport() {
 
   return (
     <>
-      {/* Sélecteur de date */}
+      {/* Sélecteur de date + boutons export */}
       <Row className="g-3 mb-4 align-items-end">
         <Col xs={12} sm={6} md={3}>
           <Form.Label className="small mb-1">Date du rapport</Form.Label>
@@ -72,12 +108,41 @@ export default function AttendanceReport() {
           />
         </Col>
         {dateFilter && (
-          <Col xs={12} sm={6} md={6}>
+          <Col xs={12} sm={6} md={4}>
             <p className="text-muted small mb-0">
               <i className="ph ph-calendar me-1" />{fmtDate(dateFilter)}
             </p>
           </Col>
         )}
+        <Col xs={12} md="auto" className="ms-auto">
+          <div className="d-flex gap-2">
+            <Button
+              variant="outline-success"
+              size="sm"
+              onClick={() => handleExport('excel')}
+              disabled={exportingXls || isLoading || presences.length === 0}
+            >
+              {exportingXls
+                ? <><Spinner size="sm" className="me-1" />Export…</>
+                : <><i className="ph ph-file-xls me-1" />Excel</>}
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={() => handleExport('pdf')}
+              disabled={exportingPdf || isLoading || presences.length === 0}
+            >
+              {exportingPdf
+                ? <><Spinner size="sm" className="me-1" />Export…</>
+                : <><i className="ph ph-file-pdf me-1" />PDF</>}
+            </Button>
+          </div>
+          {exportErr && (
+            <p className="text-danger small mt-1 mb-0">
+              <i className="ph ph-warning me-1" />{exportErr}
+            </p>
+          )}
+        </Col>
       </Row>
 
       {/* KPI cards */}
