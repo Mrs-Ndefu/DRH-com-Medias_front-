@@ -2,6 +2,8 @@ import { createContext, useContext, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from 'api/client';
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
+
 import Alert from 'react-bootstrap/Alert';
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
@@ -86,12 +88,15 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
   const [histoCarriere, setHistoCarriere] = useState([]);
   const [documents,     setDocuments]     = useState({});
   const [empreintes,    setEmpreintes]    = useState({});
-  const [photoPreview,  setPhotoPreview]  = useState(null);
+  const [photoPreview,  setPhotoPreview]  = useState(
+    agentData?.photo_url ? `${API_BASE}${agentData.photo_url}` : null
+  );
   const [sigPreview,    setSigPreview]    = useState(null);
   const [submitted,     setSubmitted]     = useState(false);
   const [saving,        setSaving]        = useState(false);
   const [saveError,     setSaveError]     = useState('');
-  const fileRefs = useRef({});
+  const fileRefs    = useRef({});
+  const photoFileRef = useRef(null);
 
   const currentIdx = TABS.findIndex((t) => t.id === activeTab);
   const hasPrev    = currentIdx > 0;
@@ -127,16 +132,35 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
     if (file) setter(URL.createObjectURL(file));
   };
 
+  const handlePhotoFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      photoFileRef.current = file;
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     setSaving(true);
     setSaveError('');
     try {
+      let savedId = agentId;
       if (editMode && agentId) {
         await api.put(`/agents/${agentId}`, form);
       } else {
-        await api.post('/agents', form);
+        const res = await api.post('/agents', form);
+        savedId = res.id;
+      }
+      if (photoFileRef.current && savedId) {
+        const token = localStorage.getItem('sirh_token');
+        const fd = new FormData();
+        fd.append('photo', photoFileRef.current);
+        await fetch(
+          `${API_BASE}/api/agents/${savedId}/photo`,
+          { method: 'PATCH', headers: { Authorization: `Bearer ${token}` }, body: fd }
+        ).catch(() => {});
       }
       setSubmitted(true);
     } catch (err) {
@@ -151,10 +175,9 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
   const renderPersonal = () => (
     <Row className="g-3">
       <T>Identité</T>
-      <F id="nomFamille"        label="Nom de famille"          required xs={12} md={4} />
-      <F id="prenom"            label="Prénom(s)"               required xs={12} md={4} />
-      <F id="prenomSecondaire"  label="Prénom secondaire"                xs={12} md={4} />
-      <F id="nomJeuneFile"      label="Nom de jeune fille"               xs={12} md={4} />
+      <F id="nomFamille"        label="Nom "          required xs={12} md={4} />
+      <F id="prenom"            label="PostNom"               required xs={12} md={4} />
+      <F id="prenomSecondaire"  label="Prénom "                xs={12} md={4} />
       <S id="sexe"              label="Sexe"                    required options={SEXES}          xs={12} md={4} />
       <F id="dateNaissance"     label="Date de naissance"       required type="date"              xs={12} md={4} />
       <F id="lieuNaissance"     label="Lieu de naissance"       required                          xs={12} md={4} />
@@ -180,10 +203,9 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
       <F id="adressePays"       label="Pays"                required  xs={12} md={4} />
 
       <T>Coordonnées</T>
-      <F id="telephoneFixe"   label="Téléphone fixe"      type="tel"   xs={12} md={4} />
-      <F id="telephoneMobile" label="Téléphone mobile"    type="tel" required xs={12} md={4} />
-      <F id="emailPro"        label="Email professionnel" type="email" xs={12} md={4} />
-      <F id="emailPersonnel"  label="Email personnel"     type="email" xs={12} md={4} />
+      <F id="telephoneFixe"   label="Téléphone 1"      type="tel"   xs={12} md={4} />
+      <F id="telephoneMobile" label="Téléphone 2"    type="tel" required xs={12} md={4} />
+      <F id="emailPersonnel"  label="Email"     type="email" xs={12} md={4} />
 
       <T>Contact d'urgence</T>
       <F id="urgenceNom"       label="Nom complet"               xs={12} md={4} />
@@ -196,7 +218,6 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
     <Row className="g-3">
       <T>Identification administrative</T>
       <F id="matricule"  label="Matricule"            required placeholder="Ex : 2024001" xs={12} md={3} />
-      <S id="corps"      label="Corps"                required options={CORPS}            xs={12} md={5} />
       <F id="grade"      label="Grade"                required                            xs={12} md={4} />
       <S id="categorie"  label="Catégorie"            required options={CATEGORIES}       xs={12} md={2} />
       <S id="classe"     label="Classe"                         options={CLASSES}          xs={12} md={3} />
@@ -204,14 +225,13 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
       <F id="indice"     label="Indice de traitement" type="number"                       xs={12} md={3} />
 
       <T>Recrutement & Nomination</T>
-      <F id="dateRecrutement"    label="Date de recrutement"    required type="date" xs={12} md={4} />
       <F id="datePriseFonction"  label="Date prise de fonction" required type="date" xs={12} md={4} />
       <F id="dateTitularisation" label="Date de titularisation"          type="date" xs={12} md={4} />
-      <S id="modeRecrutement"    label="Mode de recrutement"   required options={MODES_RECRUTEMENT} xs={12} md={4} />
       <F id="numeroDecision"     label="N° Arrêté / Décision"  required              xs={12} md={4} />
       <F id="dateDecision"       label="Date de la décision"   required type="date"  xs={12} md={4} />
       <F id="referenceJO"        label="Référence Journal Officiel"                  xs={12} md={4} />
       <F id="ministereDOrigine"  label="Ministère d'origine"                         xs={12} md={8} />
+
 
       <T>Formation principale</T>
       <S id="niveauEtudes"   label="Niveau d'études"     required options={NIVEAUX_ETUDES} xs={12} md={4} />
@@ -228,8 +248,7 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
       <T>Rémunération & Banque</T>
       <F id="numeroCnss"     label="N° CNSS / Sécurité sociale" xs={12} md={4} />
       <F id="numeroRetraite" label="N° Caisse de retraite"      xs={12} md={4} />
-      <F id="rib"            label="RIB / IBAN"                 xs={12} md={6} />
-      <F id="banque"         label="Banque domiciliataire"      xs={12} md={6} />
+      <F id="banque"         label="Banque "      xs={12} md={6} />
     </Row>
   );
 
@@ -412,14 +431,18 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
           <input
             ref={(el) => { fileRefs.current['photoIdentite'] = el; }}
             type="file" accept="image/*" className="d-none"
-            onChange={(e) => handlePhotoChange(e, setPhotoPreview)}
+            onChange={handlePhotoFileChange}
           />
           <div className="d-flex gap-2 justify-content-center">
             <Button variant="outline-primary" size="sm" onClick={() => fileRefs.current['photoIdentite']?.click()}>
               <i className="ph ph-upload-simple me-1" />Importer
             </Button>
             {photoPreview && (
-              <Button variant="outline-danger" size="sm" onClick={() => { setPhotoPreview(null); fileRefs.current['photoIdentite'].value = ''; }}>
+              <Button variant="outline-danger" size="sm" onClick={() => {
+                setPhotoPreview(null);
+                photoFileRef.current = null;
+                fileRefs.current['photoIdentite'].value = '';
+              }}>
                 <i className="ph ph-trash" />
               </Button>
             )}

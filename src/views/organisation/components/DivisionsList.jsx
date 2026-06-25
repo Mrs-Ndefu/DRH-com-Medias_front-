@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { useState } from 'react';
 
 import { useAuth } from 'contexts/AuthContext';
+import TablePagination from 'components/TablePagination';
 
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
@@ -11,7 +12,8 @@ import Modal from 'react-bootstrap/Modal';
 import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
-const EMPTY = { directionId: '', code: '', nom: '', chef: '', effectif: '', description: '', active: true };
+const EMPTY      = { directionId: '', code: '', nom: '', chef: '', effectif: '', description: '', active: true };
+const PAGE_LIMIT = 10;
 
 // ==============================|| ORGANISATION — DIVISIONS ||============================== //
 
@@ -22,6 +24,7 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
   const [editItem,    setEditItem]    = useState(null);
   const [form,        setForm]        = useState(EMPTY);
   const [filterDir,   setFilterDir]   = useState('');
+  const [page,        setPage]        = useState(1);
 
   const openAdd  = () => { setEditItem(null); setForm(EMPTY); setModal(true); };
   const openEdit = (d) => { setEditItem(d); setForm({ ...d }); setModal(true); };
@@ -39,6 +42,7 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
   const toggle = (id) => setDivisions((p) => p.map((d) => d.id === id ? { ...d, active: !d.active } : d));
 
   const filtered = filterDir ? divisions.filter(d => d.directionId === filterDir) : divisions;
+  const paged    = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const dirName = (id) => directions.find(d => d.id === id)?.sigle || id;
 
@@ -52,7 +56,7 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
           </small>
         </div>
         <div className="d-flex gap-2 align-items-center">
-          <Form.Select size="sm" value={filterDir} onChange={(e) => setFilterDir(e.target.value)} style={{ width: 220 }}>
+          <Form.Select size="sm" value={filterDir} onChange={(e) => { setFilterDir(e.target.value); setPage(1); }} style={{ width: 220 }}>
             <option value="">Toutes les directions</option>
             {directions.map(d => <option key={d.id} value={d.id}>{d.sigle} — {d.nom}</option>)}
           </Form.Select>
@@ -81,7 +85,7 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
           {filtered.length === 0 ? (
             <tr><td colSpan={8} className="text-center text-muted py-4">Aucune division trouvée</td></tr>
           ) : (
-            filtered.map((d) => {
+            paged.map((d) => {
               const nbBureaux = bureaux.filter(b => b.divisionId === d.id).length;
               return (
                 <tr key={d.id} style={{ opacity: d.active ? 1 : 0.5 }}>
@@ -115,6 +119,7 @@ export default function DivisionsList({ divisions, bureaux, directions, setDivis
           )}
         </tbody>
       </Table>
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal ── */}
       <Modal show={modal} onHide={() => setModal(false)} centered size="lg">

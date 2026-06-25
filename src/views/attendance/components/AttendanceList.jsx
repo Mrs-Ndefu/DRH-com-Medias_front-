@@ -11,6 +11,9 @@ import Stack   from 'react-bootstrap/Stack';
 import Table   from 'react-bootstrap/Table';
 
 import { fetcher } from 'api/client';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 15;
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -40,6 +43,7 @@ const STATUT = {
 
 export default function AttendanceList() {
   const [dateFilter, setDateFilter] = useState(todayStr());
+  const [page,       setPage]       = useState(1);
 
   const { data, isLoading } = useSWR(`/presences?date=${dateFilter}`, fetcher, {
     refreshInterval: 30000,
@@ -47,6 +51,9 @@ export default function AttendanceList() {
   });
 
   const presences = data || [];
+  const paged     = presences.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
+
+  const handleDateChange = (v) => { setDateFilter(v); setPage(1); };
 
   return (
     <>
@@ -58,13 +65,13 @@ export default function AttendanceList() {
             type="date"
             size="sm"
             value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
+            onChange={e => handleDateChange(e.target.value)}
           />
         </Col>
         <Col xs="auto">
           <Stack direction="horizontal" gap={2}>
             <Badge bg="secondary">{presences.length} agent{presences.length > 1 ? 's' : ''}</Badge>
-            <Button variant="outline-secondary" size="sm" onClick={() => setDateFilter(todayStr())}>
+            <Button variant="outline-secondary" size="sm" onClick={() => { setDateFilter(todayStr()); setPage(1); }}>
               Aujourd'hui
             </Button>
           </Stack>
@@ -105,7 +112,7 @@ export default function AttendanceList() {
                 </td>
               </tr>
             ) : (
-              presences.map(p => {
+              paged.map(p => {
                 const s = STATUT[p.statut] || { label: p.statut, bg: 'secondary', text: undefined };
                 return (
                   <tr key={p.id} className={p.statut === 'RETARD' ? 'table-warning' : ''}>
@@ -132,6 +139,7 @@ export default function AttendanceList() {
           </tbody>
         </Table>
       )}
+      {!isLoading && <TablePagination page={page} setPage={setPage} total={presences.length} limit={PAGE_LIMIT} />}
     </>
   );
 }

@@ -16,6 +16,8 @@ import MainCard from 'components/MainCard';
 import { fetcher } from 'api/client';
 import { exportAgentFiche } from 'utils/exportAgentPdf';
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
+
 const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
 
 const INFO_STATUT = {
@@ -238,16 +240,17 @@ export default function AgentDetails() {
     <Row className="justify-content-center">
       <Col xs={12} md={6} className="text-center">
         <div
-          className="mx-auto mb-3 border rounded bg-light d-flex align-items-center justify-content-center"
+          className="mx-auto mb-3 border rounded overflow-hidden bg-light d-flex align-items-center justify-content-center"
           style={{ width: 150, height: 190 }}
         >
-          <div style={{ fontSize: 56, fontWeight: 700, color: 'var(--bs-primary)', opacity: 0.5 }}>
-            {initials}
-          </div>
+          {agent.photo_url
+            ? <img src={`${API_BASE}${agent.photo_url}`} alt={fullName} className="w-100 h-100" style={{ objectFit: 'cover' }} />
+            : <div style={{ fontSize: 56, fontWeight: 700, color: 'var(--bs-primary)', opacity: 0.5 }}>{initials}</div>
+          }
         </div>
-        <p className="text-muted small">Aucune photo importée pour cet agent fictif.</p>
+        {!agent.photo_url && <p className="text-muted small">Aucune photo importée pour cet agent.</p>}
         <Button as={Link} to={`/agents/${id}/edit`} variant="outline-primary" size="sm">
-          <i className="ph ph-camera me-2" />Ajouter une photo
+          <i className="ph ph-camera me-2" />{agent.photo_url ? 'Modifier la photo' : 'Ajouter une photo'}
         </Button>
       </Col>
     </Row>
@@ -286,10 +289,13 @@ export default function AgentDetails() {
         <MainCard>
           <div className="text-center py-2">
             <div
-              className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3 bg-primary bg-opacity-10"
-              style={{ width: 80, height: 80, fontSize: 28, fontWeight: 700, color: 'var(--bs-primary)' }}
+              className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3 overflow-hidden bg-primary bg-opacity-10"
+              style={{ width: 80, height: 80 }}
             >
-              {initials}
+              {agent.photo_url
+                ? <img src={`${API_BASE}${agent.photo_url}`} alt={fullName} className="w-100 h-100" style={{ objectFit: 'cover' }} />
+                : <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--bs-primary)' }}>{initials}</span>
+              }
             </div>
             <h5 className="mb-1">{fullName}</h5>
             <p className="text-muted small mb-2">{agent.grade}</p>

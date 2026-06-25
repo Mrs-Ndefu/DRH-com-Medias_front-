@@ -1,6 +1,10 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
+
 // react-bootstrap
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
@@ -20,6 +24,7 @@ export default function LeavesTable({ leaves, onSelect }) {
   const [search,     setSearch]     = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStat, setFilterStat] = useState('');
+  const [page,       setPage]       = useState(1);
 
   const filtered = leaves.filter((l) => {
     const matchSearch = !search || l.nom.toLowerCase().includes(search.toLowerCase()) || l.matricule.includes(search);
@@ -28,7 +33,12 @@ export default function LeavesTable({ leaves, onSelect }) {
     return matchSearch && matchType && matchStat;
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  const reset = () => { setSearch(''); setFilterType(''); setFilterStat(''); };
+  const paged = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
+
+  const reset = () => { setSearch(''); setFilterType(''); setFilterStat(''); setPage(1); };
+  const onSearchChange     = (v) => { setSearch(v);     setPage(1); };
+  const onFilterTypeChange = (v) => { setFilterType(v); setPage(1); };
+  const onFilterStatChange = (v) => { setFilterStat(v); setPage(1); };
 
   return (
     <>
@@ -40,12 +50,12 @@ export default function LeavesTable({ leaves, onSelect }) {
             <Form.Control
               placeholder="Rechercher par nom, matricule…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => onSearchChange(e.target.value)}
             />
           </InputGroup>
         </Col>
         <Col xs={6} md={3}>
-          <Form.Select size="sm" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <Form.Select size="sm" value={filterType} onChange={(e) => onFilterTypeChange(e.target.value)}>
             <option value="">Tous les types</option>
             {Object.entries(LEAVE_TYPES).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
@@ -53,7 +63,7 @@ export default function LeavesTable({ leaves, onSelect }) {
           </Form.Select>
         </Col>
         <Col xs={6} md={3}>
-          <Form.Select size="sm" value={filterStat} onChange={(e) => setFilterStat(e.target.value)}>
+          <Form.Select size="sm" value={filterStat} onChange={(e) => onFilterStatChange(e.target.value)}>
             <option value="">Tous les statuts</option>
             {Object.entries(STATUSES).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
@@ -93,7 +103,7 @@ export default function LeavesTable({ leaves, onSelect }) {
               </td>
             </tr>
           ) : (
-            filtered.map((l) => {
+            paged.map((l) => {
               const lt = LEAVE_TYPES[l.type?.toUpperCase()] || { label: l.type, color: 'secondary', icon: 'ph-calendar' };
               const st = STATUSES[l.status] || { label: l.status, color: 'secondary' };
               return (
@@ -125,6 +135,7 @@ export default function LeavesTable({ leaves, onSelect }) {
           )}
         </tbody>
       </Table>
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
     </>
   );
 }

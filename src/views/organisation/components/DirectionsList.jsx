@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { useState } from 'react';
 
 import { useAuth } from 'contexts/AuthContext';
+import TablePagination from 'components/TablePagination';
 
 import Badge from 'react-bootstrap/Badge';
 import Button from 'react-bootstrap/Button';
@@ -12,6 +13,7 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+const PAGE_LIMIT = 10;
 
 const EMPTY = { code: '', nom: '', sigle: '', chef: '', chefMatricule: '', effectif: '', description: '', active: true };
 
@@ -23,6 +25,8 @@ export default function DirectionsList({ directions, divisions, setDirections })
   const [modal,    setModal]    = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form,     setForm]     = useState(EMPTY);
+  const [page,     setPage]     = useState(1);
+  const paged = directions.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const openAdd  = () => { setEditItem(null); setForm(EMPTY); setModal(true); };
   const openEdit = (d) => { setEditItem(d); setForm({ ...d }); setModal(true); };
@@ -70,7 +74,7 @@ export default function DirectionsList({ directions, divisions, setDirections })
           </tr>
         </thead>
         <tbody>
-          {directions.map((d) => {
+          {paged.map((d) => {
             const nbDivisions = divisions.filter(dv => dv.directionId === d.id).length;
             return (
               <tr key={d.id} style={{ opacity: d.active ? 1 : 0.5 }}>
@@ -113,6 +117,7 @@ export default function DirectionsList({ directions, divisions, setDirections })
           })}
         </tbody>
       </Table>
+      <TablePagination page={page} setPage={setPage} total={directions.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal Add / Edit ── */}
       <Modal show={modal} onHide={() => setModal(false)} centered size="lg">

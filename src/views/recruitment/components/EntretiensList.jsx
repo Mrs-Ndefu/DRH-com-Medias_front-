@@ -10,6 +10,9 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { STATUTS_ENTRETIEN, TYPES_ENTRETIEN } from '../data/recruitment';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
 
 const EMPTY = { candidatId: '', offreId: '', date: '', heure: '', lieu: '', type: 'RH', statut: 'PLANIFIE', note: '', appreciation: '', evaluateur: '' };
 
@@ -45,8 +48,10 @@ export default function EntretiensList({ entretiens, candidats, offres, setEntre
   const nomCandidat = (id) => { const c = candidats.find(x => x.id === id); return c ? `${c.prenom} ${c.nom}` : id; };
   const titrOffre   = (id) => offres.find(o => o.id === id)?.titre || id;
 
+  const [page, setPage] = useState(1);
   const filtered = filterSt ? entretiens.filter(e => e.statut === filterSt) : entretiens;
   const sorted   = [...filtered].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure));
+  const paged    = sorted.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   return (
     <>
@@ -89,7 +94,7 @@ export default function EntretiensList({ entretiens, candidats, offres, setEntre
             <tr><td colSpan={9} className="text-center text-muted py-5">
               <i className="ph ph-calendar f-28 d-block mb-2" />Aucun entretien planifié
             </td></tr>
-          ) : sorted.map((e) => {
+          ) : paged.map((e) => {
             const s = STATUTS_ENTRETIEN[e.statut] || {};
             return (
               <tr key={e.id}>
@@ -131,6 +136,8 @@ export default function EntretiensList({ entretiens, candidats, offres, setEntre
           })}
         </tbody>
       </Table>
+
+      <TablePagination page={page} setPage={setPage} total={sorted.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal saisie note ── */}
       <Modal show={!!noteModal} onHide={() => setNoteModal(null)} centered>

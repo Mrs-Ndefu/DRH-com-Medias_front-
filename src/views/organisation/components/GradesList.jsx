@@ -12,6 +12,9 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { CATEGORIES } from '../data/org';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
 
 const CAT_COLORS = { A: 'danger', B: 'warning', C: 'info', D: 'secondary' };
 const EMPTY = { categorie: 'A', code: '', nom: '', echelons: '', indiceMin: '', indiceMax: '', active: true };
@@ -41,7 +44,9 @@ export default function GradesList({ grades, setGrades }) {
 
   const toggle = (id) => setGrades((p) => p.map((g) => g.id === id ? { ...g, active: !g.active } : g));
 
+  const [page, setPage] = useState(1);
   const filtered = filterCat ? grades.filter(g => g.categorie === filterCat) : grades;
+  const paged    = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   return (
     <>
@@ -57,7 +62,7 @@ export default function GradesList({ grades, setGrades }) {
           </div>
         </div>
         <div className="d-flex gap-2">
-          <Form.Select size="sm" value={filterCat} onChange={(e) => setFilterCat(e.target.value)} style={{ width: 140 }}>
+          <Form.Select size="sm" value={filterCat} onChange={(e) => { setFilterCat(e.target.value); setPage(1); }} style={{ width: 140 }}>
             <option value="">Toutes catégories</option>
             {CATEGORIES.map(c => <option key={c} value={c}>Catégorie {c}</option>)}
           </Form.Select>
@@ -83,7 +88,7 @@ export default function GradesList({ grades, setGrades }) {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((g) => (
+          {paged.map((g) => (
             <tr key={g.id} style={{ opacity: g.active ? 1 : 0.5 }}>
               <td>
                 <Badge bg={CAT_COLORS[g.categorie] || 'secondary'} className="px-3">
@@ -114,6 +119,7 @@ export default function GradesList({ grades, setGrades }) {
           ))}
         </tbody>
       </Table>
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal ── */}
       <Modal show={modal} onHide={() => setModal(false)} centered>

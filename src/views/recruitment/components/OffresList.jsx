@@ -10,6 +10,9 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { CATEGORIES, DIRECTIONS, STATUTS_OFFRE, TYPES_POSTE } from '../data/recruitment';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
 
 const EMPTY = { reference: '', titre: '', direction: '', division: '', typePoste: 'CONCOURS', categorie: 'A', nbPostes: 1, datePublication: '', dateCloture: '', statut: 'OUVERTE', description: '', qualifications: '' };
 
@@ -22,6 +25,7 @@ export default function OffresList({ offres, candidats, setOffres, onSelectOffre
   const [editItem, setEditItem] = useState(null);
   const [form,     setForm]     = useState(EMPTY);
   const [filterStatut, setFilterStatut] = useState('');
+  const [page, setPage] = useState(1);
 
   const openAdd  = () => { setEditItem(null); setForm(EMPTY); setModal(true); };
   const openEdit = (o) => { setEditItem(o); setForm({ ...o }); setModal(true); };
@@ -37,6 +41,7 @@ export default function OffresList({ offres, candidats, setOffres, onSelectOffre
   };
 
   const filtered = filterStatut ? offres.filter(o => o.statut === filterStatut) : offres;
+  const paged    = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const nbCandidats = (id) => candidats.filter(c => c.offreId === id).length;
 
@@ -48,7 +53,7 @@ export default function OffresList({ offres, candidats, setOffres, onSelectOffre
           <Col key={key} xs={6} md={4}>
             <div className={`border border-${s.color} border-opacity-25 rounded p-3 text-center bg-${s.color} bg-opacity-10`}
               style={{ cursor: 'pointer' }}
-              onClick={() => setFilterStatut(filterStatut === key ? '' : key)}>
+              onClick={() => { setFilterStatut(filterStatut === key ? '' : key); setPage(1); }}>
               <h4 className={`mb-0 text-${s.color}`}>{offres.filter(o => o.statut === key).length}</h4>
               <small className="text-muted">{s.label}</small>
             </div>
@@ -89,7 +94,7 @@ export default function OffresList({ offres, candidats, setOffres, onSelectOffre
             <tr><td colSpan={9} className="text-center text-muted py-5">
               <i className="ph ph-briefcase f-28 d-block mb-2" />Aucune offre
             </td></tr>
-          ) : filtered.map((o) => {
+          ) : paged.map((o) => {
             const s = STATUTS_OFFRE[o.statut] || {};
             return (
               <tr key={o.id}>
@@ -129,6 +134,8 @@ export default function OffresList({ offres, candidats, setOffres, onSelectOffre
           })}
         </tbody>
       </Table>
+
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal ── */}
       <Modal show={modal} onHide={() => setModal(false)} centered size="lg">

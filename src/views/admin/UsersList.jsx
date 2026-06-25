@@ -11,8 +11,11 @@ import Spinner from 'react-bootstrap/Spinner';
 import Table   from 'react-bootstrap/Table';
 
 import MainCard from 'components/MainCard';
+import TablePagination from 'components/TablePagination';
 import { fetcher, api } from 'api/client';
 import { useAuth } from 'contexts/AuthContext';
+
+const PAGE_LIMIT = 10;
 
 const USERS_KEY  = '/users';
 const API_BASE   = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
@@ -77,6 +80,8 @@ export default function UsersList() {
   const { user: currentUser } = useAuth();
   const { data: raw, isLoading, error } = useSWR(USERS_KEY, fetcher);
   const users = raw?.data || [];
+  const [page, setPage] = useState(1);
+  const paged = users.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const [editUser,     setEditUser]     = useState(null);
   const [editForm,     setEditForm]     = useState({ role: '', actif: true });
@@ -226,7 +231,7 @@ export default function UsersList() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {paged.map(u => (
                 <tr key={u.id} style={{ opacity: u.actif ? 1 : 0.55 }}>
                   <td>
                     <div className="d-flex align-items-center gap-2">
@@ -279,6 +284,7 @@ export default function UsersList() {
               )}
             </tbody>
           </Table>
+          <TablePagination page={page} setPage={setPage} total={users.length} limit={PAGE_LIMIT} />
         </MainCard>
       </Col>
 

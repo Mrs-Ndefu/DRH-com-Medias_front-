@@ -22,6 +22,7 @@ export default function Footer() {
           </Col>
 
           {/* Footer Links */}
+          
           <Col xs="auto" className="my-1">
             <Stack direction="horizontal" gap={3} className="justify-content-center">
               <Nav.Link className="p-0" as="a" href="/dashboard">

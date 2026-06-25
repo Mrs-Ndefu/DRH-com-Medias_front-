@@ -10,6 +10,9 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { STATUTS_CANDIDAT } from '../data/recruitment';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
 
 const EMPTY = { nom: '', prenom: '', email: '', telephone: '', dateNaissance: '', diplome: '', etablissement: '', experience: 0, offreId: '', statut: 'EN_ATTENTE', dateDepot: '' };
 
@@ -23,6 +26,7 @@ export default function CandidatsList({ candidats, offres, setCandidats, filtreO
   const [form,        setForm]        = useState(EMPTY);
   const [filterSt,    setFilterSt]    = useState('');
   const [modalDetail, setModalDetail] = useState(null);
+  const [page,        setPage]        = useState(1);
 
   const openAdd  = () => { setEditItem(null); setForm({ ...EMPTY, offreId: filtreOffreId || '' }); setModal(true); };
   const openEdit = (c) => { setEditItem(c); setForm({ ...c }); setModal(true); };
@@ -39,6 +43,7 @@ export default function CandidatsList({ candidats, offres, setCandidats, filtreO
   const filtered = candidats
     .filter(c => !filtreOffreId || c.offreId === filtreOffreId)
     .filter(c => !filterSt     || c.statut  === filterSt);
+  const paged = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const offreTitre = (id) => offres.find(o => o.id === id)?.titre || id;
 
@@ -100,7 +105,7 @@ export default function CandidatsList({ candidats, offres, setCandidats, filtreO
             <tr><td colSpan={7} className="text-center text-muted py-5">
               <i className="ph ph-users f-28 d-block mb-2" />Aucun candidat
             </td></tr>
-          ) : filtered.map((c) => {
+          ) : paged.map((c) => {
             const s = STATUTS_CANDIDAT[c.statut] || {};
             return (
               <tr key={c.id}>
@@ -156,6 +161,8 @@ export default function CandidatsList({ candidats, offres, setCandidats, filtreO
           })}
         </tbody>
       </Table>
+
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal fiche candidat ── */}
       <Modal show={!!modalDetail} onHide={() => setModalDetail(null)} centered>

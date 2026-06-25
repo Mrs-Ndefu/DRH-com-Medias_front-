@@ -12,6 +12,9 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { NIVEAUX_HIERARCHIQUES } from '../data/org';
+import TablePagination from 'components/TablePagination';
+
+const PAGE_LIMIT = 10;
 
 const EMPTY = { code: '', nom: '', niveau: 1, description: '', active: true };
 
@@ -41,7 +44,9 @@ export default function FonctionsList({ fonctions, setFonctions }) {
 
   const toggle = (id) => setFonctions((p) => p.map((f) => f.id === id ? { ...f, active: !f.active } : f));
 
+  const [page, setPage] = useState(1);
   const sorted = [...fonctions].sort((a, b) => a.niveau - b.niveau);
+  const paged  = sorted.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   return (
     <>
@@ -71,7 +76,7 @@ export default function FonctionsList({ fonctions, setFonctions }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((f) => {
+          {paged.map((f) => {
             const nColor = NIVEAU_COLORS[f.niveau] || 'secondary';
             const nLabel = NIVEAUX_HIERARCHIQUES.find(n => n.value === f.niveau)?.label || `N${f.niveau}`;
             return (
@@ -104,6 +109,7 @@ export default function FonctionsList({ fonctions, setFonctions }) {
           })}
         </tbody>
       </Table>
+      <TablePagination page={page} setPage={setPage} total={sorted.length} limit={PAGE_LIMIT} />
 
       {/* ── Modal ── */}
       <Modal show={modal} onHide={() => setModal(false)} centered>

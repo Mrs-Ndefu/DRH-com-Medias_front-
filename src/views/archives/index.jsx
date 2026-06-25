@@ -15,8 +15,11 @@ import Spinner     from 'react-bootstrap/Spinner';
 import Table       from 'react-bootstrap/Table';
 
 import MainCard from 'components/MainCard';
+import TablePagination from 'components/TablePagination';
 import { fetcher } from 'api/client';
 import { useAuth } from 'contexts/AuthContext';
+
+const PAGE_LIMIT = 15;
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -158,15 +161,22 @@ export default function ArchivesPage() {
 function AgentsTab({ isAdmin, showToast }) {
   const [search,    setSearch]    = useState('');
   const [filterSit, setFilterSit] = useState('');
+  const [page,      setPage]      = useState(1);
   const [restoring, setRestoring] = useState(null);
   const [confirm,   setConfirm]   = useState(null);
 
   const query = new URLSearchParams();
   if (search)    query.set('search',    search);
   if (filterSit) query.set('situation', filterSit);
+  query.set('page',  String(page));
+  query.set('limit', String(PAGE_LIMIT));
 
   const { data, error, isLoading } = useSWR(`/archives/agents?${query}`, fetcher);
-  const agents = data?.data || [];
+  const agents = data?.data  || [];
+  const total  = data?.total ?? 0;
+
+  const handleSearch    = (v) => { setSearch(v);    setPage(1); };
+  const handleFilterSit = (v) => { setFilterSit(v); setPage(1); };
 
   const handleRestaurer = async (agent) => {
     setRestoring(agent.id);
@@ -192,13 +202,13 @@ function AgentsTab({ isAdmin, showToast }) {
             <Form.Control
               placeholder="Rechercher par nom, prénom ou matricule…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
             />
-            {search && <Button variant="outline-secondary" onClick={() => setSearch('')}><i className="ph ph-x" /></Button>}
+            {search && <Button variant="outline-secondary" onClick={() => handleSearch('')}><i className="ph ph-x" /></Button>}
           </InputGroup>
         </Col>
         <Col xs={12} md={3}>
-          <Form.Select value={filterSit} onChange={(e) => setFilterSit(e.target.value)}>
+          <Form.Select value={filterSit} onChange={(e) => handleFilterSit(e.target.value)}>
             <option value="">Toutes situations</option>
             {SITUATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </Form.Select>
@@ -215,6 +225,7 @@ function AgentsTab({ isAdmin, showToast }) {
           Aucun agent archivé trouvé.
         </div>
       ) : (
+        <>
         <Table hover responsive className="align-middle">
           <thead className="table-light">
             <tr>
@@ -260,6 +271,8 @@ function AgentsTab({ isAdmin, showToast }) {
             ))}
           </tbody>
         </Table>
+        <TablePagination page={page} setPage={setPage} total={total} limit={PAGE_LIMIT} />
+        </>
       )}
 
       <Modal show={!!confirm} onHide={() => setConfirm(null)} centered>
@@ -291,6 +304,7 @@ const EMPTY_FORM = {
 function DocumentsTab({ isAdmin, showToast }) {
   const [search,     setSearch]     = useState('');
   const [filterType, setFilterType] = useState('');
+  const [pageDoc,    setPageDoc]    = useState(1);
   const [showAdd,    setShowAdd]    = useState(false);
   const [detailDoc,  setDetailDoc]  = useState(null);
   const [form,       setForm]       = useState(EMPTY_FORM);
@@ -306,7 +320,9 @@ function DocumentsTab({ isAdmin, showToast }) {
   if (filterType) query.set('type',   filterType);
 
   const { data, error, isLoading } = useSWR(`/archives/documents?${query}`, fetcher);
-  const docs = data?.data || [];
+  const docs      = data?.data  || [];
+  const docsTotal = data?.total ?? docs.length;
+  const pagedDocs = docs.slice((pageDoc - 1) * PAGE_LIMIT, pageDoc * PAGE_LIMIT);
 
   const validate = () => {
     const e = {};
@@ -418,6 +434,7 @@ function DocumentsTab({ isAdmin, showToast }) {
           )}
         </div>
       ) : (
+        <>
         <Table hover responsive className="align-middle">
           <thead className="table-light">
             <tr>
@@ -431,7 +448,7 @@ function DocumentsTab({ isAdmin, showToast }) {
             </tr>
           </thead>
           <tbody>
-            {docs.map((d) => (
+            {pagedDocs.map((d) => (
               <tr key={d.id}>
                 <td><code className="fw-bold text-primary">{d.reference}</code></td>
                 <td className="text-center">
@@ -483,6 +500,8 @@ function DocumentsTab({ isAdmin, showToast }) {
             ))}
           </tbody>
         </Table>
+        <TablePagination page={pageDoc} setPage={setPageDoc} total={docsTotal} limit={PAGE_LIMIT} />
+        </>
       )}
 
       {/* ══════════════════ MODAL AJOUT ══════════════════ */}

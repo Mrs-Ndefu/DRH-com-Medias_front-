@@ -15,9 +15,14 @@ import Alert from 'react-bootstrap/Alert';
 
 // project-imports
 import MainCard from 'components/MainCard';
+import TablePagination from 'components/TablePagination';
 import { fetcher } from 'api/client';
 import { SITUATIONS_ADMIN } from './data/agents';
+
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
 import { exportAgentsToExcel } from 'utils/exportExcel';
+
+const PAGE_LIMIT = 20;
 
 const STATUS_COLORS = {
   'En activité':        'success',
@@ -34,17 +39,24 @@ const STATUS_COLORS = {
 export default function AgentsList() {
   const [search,     setSearch]     = useState('');
   const [filterStat, setFilterStat] = useState('');
+  const [page,       setPage]       = useState(1);
 
   const query = new URLSearchParams();
   if (search)     query.set('search', search);
   if (filterStat) query.set('situation_admin', filterStat);
-  query.set('limit', '100');
+  query.set('page',  String(page));
+  query.set('limit', String(PAGE_LIMIT));
 
   const { data, error, isLoading } = useSWR(`/agents?${query}`, fetcher);
 
-  const agents      = data?.data || [];
+  const agents      = data?.data  || [];
+  const total       = data?.total ?? 0;
   const filtered    = agents;
   const activeCount = agents.filter((a) => a.situation_admin === 'En activité').length;
+
+  // reset to page 1 on filter change
+  const handleSearch     = (v) => { setSearch(v);     setPage(1); };
+  const handleFilterStat = (v) => { setFilterStat(v); setPage(1); };
   const [exporting, setExporting] = useState(false);
 
   const handleExportExcel = () => {
@@ -111,12 +123,12 @@ export default function AgentsList() {
                 <Form.Control
                   placeholder="Nom, matricule, poste…"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => handleSearch(e.target.value)}
                 />
               </InputGroup>
             </Col>
             <Col xs={6} md={3}>
-              <Form.Select size="sm" value={filterStat} onChange={(e) => setFilterStat(e.target.value)}>
+              <Form.Select size="sm" value={filterStat} onChange={(e) => handleFilterStat(e.target.value)}>
                 <option value="">Toutes situations</option>
                 {SITUATIONS_ADMIN.map((s) => <option key={s} value={s}>{s}</option>)}
               </Form.Select>
@@ -127,7 +139,7 @@ export default function AgentsList() {
           </Row>
 
           {/* ── Tableau ── */}
-          <Table hover responsive className="align-middle">
+          <Table hover responsive className="align-middle" style={{ minWidth: 700 }}>
             <thead className="table-light">
               <tr>
                 <th>Matricule</th>
@@ -156,10 +168,13 @@ export default function AgentsList() {
                     <td>
                       <div className="d-flex align-items-center gap-2">
                         <div
-                          className="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
+                          className="rounded-circle overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center bg-primary bg-opacity-10"
                           style={{ width: 36, height: 36, fontSize: 13, fontWeight: 600, color: 'var(--bs-primary)' }}
                         >
-                          {a.prenom?.[0]}{a.nom_famille?.[0]}
+                          {a.photo_url
+                            ? <img src={`${API_BASE}${a.photo_url}`} alt="" className="w-100 h-100" style={{ objectFit: 'cover' }} />
+                            : <>{a.prenom?.[0]}{a.nom_famille?.[0]}</>
+                          }
                         </div>
                         <div>
                           <div className="fw-semibold">{a.prenom} {a.nom_famille}</div>
@@ -194,6 +209,7 @@ export default function AgentsList() {
               )}
             </tbody>
           </Table>
+          <TablePagination page={page} setPage={setPage} total={total} limit={PAGE_LIMIT} />
         </MainCard>
       </Col>
     </Row>

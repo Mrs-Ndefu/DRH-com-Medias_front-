@@ -10,7 +10,10 @@ import Row from 'react-bootstrap/Row';
 import Table from 'react-bootstrap/Table';
 
 import { useAuth } from 'contexts/AuthContext';
+import TablePagination from 'components/TablePagination';
 import { MOIS_NOMS, STATUTS_BULLETIN } from '../data/payroll';
+
+const PAGE_LIMIT = 15;
 
 const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n)) + ' FCFA';
 const fmtN = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
@@ -156,6 +159,7 @@ export default function BulletinsList({ bulletins, setBulletins }) {
   const [filterSt,    setFilterSt]    = useState('');
   const [filterDir,   setFilterDir]   = useState('');
   const [filterMois,  setFilterMois]  = useState('');
+  const [page,        setPage]        = useState(1);
 
   const directions = [...new Set(bulletins.map(b => b.direction))];
 
@@ -170,8 +174,11 @@ export default function BulletinsList({ bulletins, setBulletins }) {
     .filter(b => !filterDir || b.direction === filterDir)
     .filter(b => !filterMois || `${b.annee}-${String(b.mois).padStart(2,'0')}` === filterMois);
 
+  const paged    = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
   const totalNet   = filtered.reduce((s, b) => s + b.salaireNet, 0);
   const totalBrut  = filtered.reduce((s, b) => s + b.salaireBrut, 0);
+
+  const setFilter = (setter) => (v) => { setter(v); setPage(1); };
 
   return (
     <>
@@ -191,11 +198,11 @@ export default function BulletinsList({ bulletins, setBulletins }) {
       {/* ── Filtres + actions ── */}
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div className="d-flex gap-2 flex-wrap">
-          <Form.Select size="sm" value={filterDir} onChange={e => setFilterDir(e.target.value)} style={{ width: 120 }}>
+          <Form.Select size="sm" value={filterDir} onChange={e => setFilter(setFilterDir)(e.target.value)} style={{ width: 120 }}>
             <option value="">Toutes directions</option>
             {directions.map(d => <option key={d} value={d}>{d}</option>)}
           </Form.Select>
-          <Form.Select size="sm" value={filterSt} onChange={e => setFilterSt(e.target.value)} style={{ width: 140 }}>
+          <Form.Select size="sm" value={filterSt} onChange={e => setFilter(setFilterSt)(e.target.value)} style={{ width: 140 }}>
             <option value="">Tous statuts</option>
             {Object.entries(STATUTS_BULLETIN).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
           </Form.Select>
@@ -228,7 +235,7 @@ export default function BulletinsList({ bulletins, setBulletins }) {
           </tr>
         </thead>
         <tbody>
-          {filtered.map(b => {
+          {paged.map(b => {
             const s = STATUTS_BULLETIN[b.statut] || {};
             return (
               <tr key={b.id}>
@@ -286,6 +293,7 @@ export default function BulletinsList({ bulletins, setBulletins }) {
         )}
       </Table>
 
+      <TablePagination page={page} setPage={setPage} total={filtered.length} limit={PAGE_LIMIT} />
       <BulletinDetail b={detail} onClose={() => setDetail(null)} />
     </>
   );

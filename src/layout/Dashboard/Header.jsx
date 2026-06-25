@@ -21,8 +21,7 @@ import { ThemeMode } from 'config';
 import { useAuth } from 'contexts/AuthContext';
 import { fetcher, api } from 'api/client';
 
-// assets
-import Img2 from 'assets/images/user/avatar-2.png';
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
 
 const NOTIF_ICONS = {
   CONGE:       { icon: 'ph-calendar-check', color: 'warning' },
@@ -212,13 +211,21 @@ export default function Header() {
             {/* Profil */}
             <Dropdown className="pc-h-item" align="end">
               <Dropdown.Toggle className="pc-head-link arrow-none me-0" variant="link">
-                <i className="ph ph-user-circle" />
+                {user?.photo
+                  ? <img src={`${API_BASE}${user.photo}`} alt="" className="rounded-circle" style={{ width: 32, height: 32, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.5)' }} />
+                  : <i className="ph ph-user-circle" />
+                }
               </Dropdown.Toggle>
               <Dropdown.Menu className="dropdown-user-profile pc-h-dropdown p-0 overflow-hidden">
                 <Dropdown.Header className="bg-primary">
                   <Stack direction="horizontal" gap={3} className="my-2">
                     <div className="flex-shrink-0">
-                      <Image src={Img2} alt="avatar" className="user-avatar wid-35" roundedCircle />
+                      {user?.photo
+                        ? <Image src={`${API_BASE}${user.photo}`} alt="avatar" className="user-avatar wid-35" roundedCircle style={{ objectFit: 'cover', width: 35, height: 35 }} />
+                        : <div className="rounded-circle d-inline-flex align-items-center justify-content-center bg-white bg-opacity-25 text-white fw-bold" style={{ width: 35, height: 35, fontSize: 14 }}>
+                            {(user?.prenom?.[0] || '').toUpperCase()}{(user?.nom?.[0] || '').toUpperCase()}
+                          </div>
+                      }
                     </div>
                     <Stack gap={1}>
                       <h6 className="text-white mb-0">{user ? `${user.prenom} ${user.nom}` : 'Utilisateur'}</h6>

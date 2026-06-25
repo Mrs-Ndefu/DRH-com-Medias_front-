@@ -67,7 +67,7 @@ function apiToForm(a) {
     rib: a.rib || '',
     banque: a.banque || '',
     ministereAffectation: a.ministere_affectation || '',
-    direction: a.direction_libelle || '',
+    direction: a.direction || '',
     direction_id: a.direction_id || '',
     sousDirection: a.sous_direction || '',
     service: a.service || '',
@@ -75,6 +75,7 @@ function apiToForm(a) {
     poste: a.poste || '',
     lieuAffectation: a.lieu_affectation || '',
     regionAffectation: a.region_affectation || '',
+    photo_url: a.photo_url || null,
   };
 }
 
