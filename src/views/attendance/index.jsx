@@ -6,18 +6,20 @@ import Col     from 'react-bootstrap/Col';
 import Nav     from 'react-bootstrap/Nav';
 import Row     from 'react-bootstrap/Row';
 
-import MainCard          from 'components/MainCard';
-import AttendanceScanner from './components/AttendanceScanner';
-import AttendanceList    from './components/AttendanceList';
-import AttendanceReport  from './components/AttendanceReport';
-import { fetcher }       from 'api/client';
+import MainCard               from 'components/MainCard';
+import AttendanceScanner      from './components/AttendanceScanner';
+import AttendanceList         from './components/AttendanceList';
+import AttendanceReport       from './components/AttendanceReport';
+import AttendanceAgentReport  from './components/AttendanceAgentReport';
+import { fetcher }            from 'api/client';
 
 const todayStr = new Date().toISOString().split('T')[0];
 
 const TABS = [
-  { id: 'scanner', icon: 'ph-fingerprint', label: 'Pointage' },
-  { id: 'list',    icon: 'ph-list',        label: 'Journal'  },
-  { id: 'report',  icon: 'ph-chart-bar',   label: 'Rapport'  },
+  { id: 'scanner', icon: 'ph-fingerprint', label: 'Pointage'        },
+  { id: 'list',    icon: 'ph-list',        label: 'Journal'         },
+  { id: 'report',  icon: 'ph-chart-bar',   label: 'Rapport journalier' },
+  { id: 'agent',   icon: 'ph-user-list',   label: 'Rapport agent'   },
 ];
 
 // ==============================|| MODULE ATTENDANCE ||============================== //
@@ -83,6 +85,7 @@ export default function AttendancePage() {
           )}
           {activeTab === 'list'    && <AttendanceList />}
           {activeTab === 'report'  && <AttendanceReport />}
+          {activeTab === 'agent'   && <AttendanceAgentReport agents={agents} />}
         </MainCard>
       </Col>
     </Row>
