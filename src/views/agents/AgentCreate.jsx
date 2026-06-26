@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from 'api/client';
+import useSWR from 'swr';
+import { api, fetcher } from 'api/client';
 
 const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
 
@@ -98,6 +99,15 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
   const fileRefs    = useRef({});
   const photoFileRef = useRef(null);
 
+  // ── Cascade direction → division → bureau ────────────────────────────────────
+  const [selDirId, setSelDirId] = useState(agentData?.direction_id ? String(agentData.direction_id) : '');
+  const [selDivId, setSelDivId] = useState('');
+
+  const { data: apiDirs   } = useSWR('/organisation/directions', fetcher);
+  const { data: apiDivs   } = useSWR(selDirId ? `/organisation/divisions?direction_id=${selDirId}` : null, fetcher);
+  const { data: apiBurs   } = useSWR(selDivId ? `/organisation/bureaux?division_id=${selDivId}` : null, fetcher);
+  const { data: apiGrades } = useSWR('/organisation/grades', fetcher);
+
   const currentIdx = TABS.findIndex((t) => t.id === activeTab);
   const hasPrev    = currentIdx > 0;
   const hasNext    = currentIdx < TABS.length - 1;
@@ -181,10 +191,10 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
       <S id="sexe"              label="Sexe"                    required options={SEXES}          xs={12} md={4} />
       <F id="dateNaissance"     label="Date de naissance"       required type="date"              xs={12} md={4} />
       <F id="lieuNaissance"     label="Lieu de naissance"       required                          xs={12} md={4} />
-      <F id="regionNaissance"   label="Région / Province de naissance"                            xs={12} md={4} />
+      <F id="regionNaissance"   label="Province d'origine"                                        xs={12} md={4} />
       <F id="paysNaissance"     label="Pays de naissance"       required                          xs={12} md={4} />
       <F id="nationalite"       label="Nationalité"             required                          xs={12} md={4} />
-      <F id="autreNationalite"  label="Autre nationalité"                                         xs={12} md={4} />
+
       <S id="situationFamiliale" label="Situation familiale"    required options={SITUATIONS_FAM}  xs={12} md={4} />
       <F id="nbEnfants"         label="Nombre d'enfants"        type="number" placeholder="0"     xs={12} md={4} />
       <S id="groupeSanguin"     label="Groupe sanguin"          options={GROUPES_SANGUINS}         xs={12} md={4} />
@@ -218,20 +228,34 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
     <Row className="g-3">
       <T>Identification administrative</T>
       <F id="matricule"  label="Matricule"            required placeholder="Ex : 2024001" xs={12} md={3} />
-      <F id="grade"      label="Grade"                required                            xs={12} md={4} />
+      <Form.Group as={Col} xs={12} md={4}>
+        <Form.Label className="mb-1 small">Grade<span className="text-danger ms-1">*</span></Form.Label>
+        <Form.Select size="sm" value={form.grade || ''} onChange={(e) => {
+          const lib = e.target.value;
+          const found = (apiGrades || []).find((g) => g.libelle === lib);
+          set('grade', lib);
+          if (found) { set('categorie', found.categorie); set('corps', found.corps || ''); }
+        }}>
+          <option value="">— Sélectionner un grade —</option>
+          {['A','B','C','D'].map((cat) => {
+            const grds = (apiGrades || []).filter((g) => g.categorie === cat);
+            if (!grds.length) return null;
+            return (
+              <optgroup key={cat} label={`Catégorie ${cat}`}>
+                {grds.map((g) => <option key={g.id} value={g.libelle}>{g.libelle}</option>)}
+              </optgroup>
+            );
+          })}
+        </Form.Select>
+      </Form.Group>
       <S id="categorie"  label="Catégorie"            required options={CATEGORIES}       xs={12} md={2} />
-      <S id="classe"     label="Classe"                         options={CLASSES}          xs={12} md={3} />
-      <F id="echelon"    label="Échelon"              type="number"                       xs={12} md={2} />
-      <F id="indice"     label="Indice de traitement" type="number"                       xs={12} md={3} />
 
       <T>Recrutement & Nomination</T>
       <F id="datePriseFonction"  label="Date prise de fonction" required type="date" xs={12} md={4} />
       <F id="dateTitularisation" label="Date de titularisation"          type="date" xs={12} md={4} />
       <F id="numeroDecision"     label="N° Arrêté / Décision"  required              xs={12} md={4} />
-      <F id="dateDecision"       label="Date de la décision"   required type="date"  xs={12} md={4} />
-      <F id="referenceJO"        label="Référence Journal Officiel"                  xs={12} md={4} />
-      <F id="ministereDOrigine"  label="Ministère d'origine"                         xs={12} md={8} />
 
+      <F id="ministereDOrigine"  label="Ministère d'origine"                         xs={12} md={8} />
 
       <T>Formation principale</T>
       <S id="niveauEtudes"   label="Niveau d'études"     required options={NIVEAUX_ETUDES} xs={12} md={4} />
@@ -245,24 +269,67 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
       <S id="typeContrat"    label="Type de contrat"          required options={TYPES_CONTRAT}   xs={12} md={6} />
       <S id="situationAdmin" label="Situation administrative" required options={SITUATIONS_ADMIN} xs={12} md={6} />
 
-      <T>Rémunération & Banque</T>
-      <F id="numeroCnss"     label="N° CNSS / Sécurité sociale" xs={12} md={4} />
-      <F id="numeroRetraite" label="N° Caisse de retraite"      xs={12} md={4} />
-      <F id="banque"         label="Banque "      xs={12} md={6} />
     </Row>
   );
 
   const renderAffectations = () => (
     <Row className="g-3">
       <T>Affectation actuelle</T>
-      <F id="ministereAffectation" label="Ministère d'affectation"  required xs={12} md={6} />
-      <F id="direction"            label="Direction centrale"        required xs={12} md={6} />
-      <F id="sousDirection"        label="Sous-direction"                     xs={12} md={4} />
-      <F id="service"              label="Service / Division"                 xs={12} md={4} />
-      <F id="bureau"               label="Bureau / Cellule"                   xs={12} md={4} />
-      <F id="poste"                label="Intitulé du poste"        required  xs={12} md={4} />
-      <F id="lieuAffectation"      label="Lieu d'affectation"       required  xs={12} md={4} />
-      <F id="regionAffectation"    label="Région d'affectation"               xs={12} md={4} />
+      <F id="ministereAffectation" label="Ministère d'affectation" required xs={12} md={12} />
+
+      {/* Direction — select DB */}
+      <Form.Group as={Col} xs={12} md={4}>
+        <Form.Label className="mb-1 small">Direction<span className="text-danger ms-1">*</span></Form.Label>
+        <Form.Select size="sm" value={selDirId} onChange={(e) => {
+          const id = e.target.value;
+          const found = (apiDirs || []).find((d) => String(d.id) === id);
+          setSelDirId(id);
+          setSelDivId('');
+          set('direction_id', id ? parseInt(id) : null);
+          set('direction',    found ? found.libelle : '');
+          set('service', '');
+          set('bureau',  '');
+        }}>
+          <option value="">— Sélectionner une direction —</option>
+          {(apiDirs || []).map((d) => (
+            <option key={d.id} value={d.id}>{d.libelle} ({d.code})</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+
+      {/* Division — select DB filtré par direction */}
+      <Form.Group as={Col} xs={12} md={4}>
+        <Form.Label className="mb-1 small">Division</Form.Label>
+        <Form.Select size="sm" value={selDivId} disabled={!selDirId} onChange={(e) => {
+          const id = e.target.value;
+          const found = (apiDivs || []).find((d) => String(d.id) === id);
+          setSelDivId(id);
+          set('service', found ? found.libelle : '');
+          set('bureau',  '');
+        }}>
+          <option value="">— Sélectionner une division —</option>
+          {(apiDivs || []).map((d) => (
+            <option key={d.id} value={d.id}>{d.libelle}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+
+      {/* Bureau — select DB filtré par division */}
+      <Form.Group as={Col} xs={12} md={4}>
+        <Form.Label className="mb-1 small">Bureau</Form.Label>
+        <Form.Select size="sm" value={form.bureau || ''} disabled={!selDivId} onChange={(e) => {
+          set('bureau', e.target.value);
+        }}>
+          <option value="">— Sélectionner un bureau —</option>
+          {(apiBurs || []).map((b) => (
+            <option key={b.id} value={b.libelle}>{b.libelle}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+
+      <F id="poste"             label="Intitulé du poste"   required xs={12} md={4} />
+      <F id="lieuAffectation"   label="Lieu d'affectation"  required xs={12} md={4} />
+      <F id="regionAffectation" label="Région d'affectation"         xs={12} md={4} />
 
       <Col xs={12}>
         <div className="d-flex align-items-center justify-content-between mt-2 mb-2">

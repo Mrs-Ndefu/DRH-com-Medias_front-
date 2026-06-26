@@ -8,10 +8,10 @@ export const LEAVE_TYPES = {
 };
 
 export const STATUSES = {
-  PENDING_CHEF: { label: 'En attente chef', color: 'warning', step: 1 },
-  PENDING_DRH:  { label: 'En attente DRH', color: 'info',    step: 2 },
-  APPROVED:     { label: 'Approuvé',        color: 'success', step: 3 },
-  REJECTED:     { label: 'Rejeté',          color: 'danger',  step: -1 },
+  PENDING_CHEF: { label: 'En attente SG/DRH', color: 'warning', step: 1 },
+  PENDING_DRH:  { label: 'En attente SG/DRH', color: 'warning', step: 1 },
+  APPROVED:     { label: 'Approuvé',           color: 'success', step: 2 },
+  REJECTED:     { label: 'Rejeté',             color: 'danger',  step: -1 },
 };
 
 export const FAKE_EMPLOYEES = [

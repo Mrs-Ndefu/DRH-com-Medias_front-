@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import useSWR, { mutate as swrMutate } from 'swr';
+import useSWR from 'swr';
 
 // react-bootstrap
 import Badge from 'react-bootstrap/Badge';
@@ -69,10 +69,10 @@ export default function LeavesPage() {
   const [showForm,      setShowForm]    = useState(false);
   const [selectedLeave, setSelectedLeave] = useState(null);
 
-  const { data: raw, isLoading } = useSWR(CONGES_KEY, fetcher);
+  const { data: raw, isLoading, mutate } = useSWR(CONGES_KEY, fetcher);
   const leaves = (raw?.data || []).map(adaptLeave);
 
-  const refresh = () => swrMutate(CONGES_KEY);
+  const refresh = () => mutate();
 
   const createLeave = async (data) => {
     await api.post('/conges', {
@@ -82,22 +82,14 @@ export default function LeavesPage() {
       date_fin:   data.dateFin,
       nb_jours:   data.nbJours,
       motif:      data.motif,
-    });
-    refresh();
-  };
-
-  const approveChef = async (id, comment) => {
-    await api.patch(`/conges/${id}/valider-chef`, {
-      par: `${user?.prenom} ${user?.nom} — Chef de service`,
-      commentaire: comment,
-      approuve: true,
+      telephone:  data.telephone,
     });
     refresh();
   };
 
   const approveDRH = async (id, comment) => {
     await api.patch(`/conges/${id}/valider-drh`, {
-      par: `${user?.prenom} ${user?.nom} — Directeur RH`,
+      par: `${user?.prenom} ${user?.nom} — SG/DRH`,
       commentaire: comment,
       approuve: true,
     });
@@ -105,9 +97,7 @@ export default function LeavesPage() {
   };
 
   const rejectLeave = async (id, rejectedBy, motif) => {
-    const status = leaves.find(l => l.id === id)?.status;
-    const endpoint = status === 'PENDING_DRH' ? 'valider-drh' : 'valider-chef';
-    await api.patch(`/conges/${id}/${endpoint}`, {
+    await api.patch(`/conges/${id}/valider-drh`, {
       par: rejectedBy,
       commentaire: motif,
       approuve: false,
@@ -184,7 +174,6 @@ export default function LeavesPage() {
         <LeaveDetail
           leave={detailLeave}
           onHide={() => setSelectedLeave(null)}
-          onApproveChef={approveChef}
           onApproveDRH={approveDRH}
           onReject={rejectLeave}
         />

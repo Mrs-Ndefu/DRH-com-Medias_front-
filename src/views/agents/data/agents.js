@@ -75,7 +75,7 @@ export const INITIAL = {
   typeContrat: '', situationAdmin: 'En activité',
   numeroCnss: '', numeroRetraite: '', rib: '', banque: '',
   // Affectation courante
-  ministereAffectation: '', direction: '', sousDirection: '', service: '', bureau: '',
+  ministereAffectation: '', direction_id: null, direction: '', sousDirection: '', service: '', bureau: '',
   poste: '', lieuAffectation: '', regionAffectation: '',
   // Formation principale
   niveauEtudes: '', diplome: '', specialite: '', etablissement: '', paysFormation: '', anneeObtention: '', mention: '',

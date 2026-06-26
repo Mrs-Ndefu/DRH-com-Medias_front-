@@ -14,7 +14,7 @@ import { LEAVE_TYPES, countBusinessDays } from '../data/leaves';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-const EMPTY = { employeeId: '', type: 'ANNUEL', dateDebut: '', dateFin: '', nbJours: 0, motif: '' };
+const EMPTY = { employeeId: '', type: 'ANNUEL', dateDebut: '', dateFin: '', nbJours: 0, motif: '', telephone: '' };
 
 export default function LeaveForm({ show, onHide, onSubmit }) {
   const [form,   setForm]   = useState(EMPTY);
@@ -36,6 +36,16 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
   }, [form.dateDebut, form.dateFin]);
 
   const set = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }));
+
+  const handleAgentChange = (e) => {
+    const id = e.target.value;
+    const agent = agents.find((a) => String(a.id) === id);
+    setForm((p) => ({
+      ...p,
+      employeeId: id,
+      telephone: agent?.telephone_mobile || p.telephone,
+    }));
+  };
 
   const validate = () => {
     const e = {};
@@ -59,6 +69,7 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
       dateFin:    form.dateFin,
       nbJours:    form.nbJours,
       motif:      form.motif,
+      telephone:  form.telephone,
       nom:        agent ? `${agent.prenom} ${agent.nom_famille}` : '',
       matricule:  agent?.matricule || '',
       service:    agent?.direction_libelle || '',
@@ -89,7 +100,7 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
                   <Spinner size="sm" animation="border" /> Chargement des agents…
                 </div>
               ) : (
-                <Form.Select size="sm" value={form.employeeId} onChange={set('employeeId')} isInvalid={!!errors.employeeId}>
+                <Form.Select size="sm" value={form.employeeId} onChange={handleAgentChange} isInvalid={!!errors.employeeId}>
                   <option value="">— Sélectionner un agent —</option>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -148,8 +159,20 @@ export default function LeaveForm({ show, onHide, onSubmit }) {
               <Form.Control.Feedback type="invalid">{errors.motif}</Form.Control.Feedback>
             </Col>
 
+            {/* Téléphone SMS */}
+            <Col xs={12} md={6}>
+              <Form.Label className="small">Téléphone SMS <span className="text-danger">*</span></Form.Label>
+              <Form.Control
+                type="tel" size="sm"
+                placeholder="Ex : 0813191430"
+                value={form.telephone}
+                onChange={set('telephone')}
+              />
+              <Form.Text className="text-muted">Ce numéro recevra le SMS de décision</Form.Text>
+            </Col>
+
             {/* Pièce justificative */}
-            <Col xs={12}>
+            <Col xs={12} md={6}>
               <Form.Label className="small">Pièce justificative <span className="text-muted">(optionnel)</span></Form.Label>
               <Form.Control type="file" size="sm" accept=".pdf,.jpg,.jpeg,.png" />
               <Form.Text className="text-muted">PDF, JPG ou PNG — 5 Mo max</Form.Text>

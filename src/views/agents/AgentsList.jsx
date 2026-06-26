@@ -147,6 +147,7 @@ export default function AgentsList() {
                 <th>Poste</th>
                 <th>Service / Direction</th>
                 <th>Corps / Catégorie</th>
+                <th className="text-center">Recrutement</th>
                 <th className="text-center">Situation</th>
                 <th className="text-center">Actions</th>
               </tr>
@@ -154,7 +155,7 @@ export default function AgentsList() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted py-5">
+                  <td colSpan={8} className="text-center text-muted py-5">
                     <i className="ph ph-users f-36 d-block mb-2" />
                     Aucun agent ne correspond à la recherche
                   </td>
@@ -187,7 +188,13 @@ export default function AgentsList() {
                       {a.direction_libelle || '—'}
                     </td>
                     <td className="small">
-                      <Badge bg="light" text="dark">Cat. {a.categorie}</Badge>
+                      <div>{a.corps || '—'}</div>
+                      {a.categorie && <Badge bg="light" text="dark" className="mt-1">Cat. {a.categorie}</Badge>}
+                    </td>
+                    <td className="text-center small text-muted">
+                      {a.date_recrutement
+                        ? new Date(a.date_recrutement).getFullYear()
+                        : '—'}
                     </td>
                     <td className="text-center">
                       <Badge bg={STATUS_COLORS[a.situation_admin] || 'secondary'}>

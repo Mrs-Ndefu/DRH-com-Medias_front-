@@ -34,7 +34,7 @@ function StepCircle({ done, pending, rejected }) {
 
 // ==============================|| CONGÉS — DÉTAIL & WORKFLOW ||============================== //
 
-export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH, onReject }) {
+export default function LeaveDetail({ leave, onHide, onApproveDRH, onReject }) {
   const [comment,     setComment]     = useState('');
   const [rejectMode,  setRejectMode]  = useState(false);
   const [rejectMotif, setRejectMotif] = useState('');
@@ -43,11 +43,8 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
   const lt = LEAVE_TYPES[leave.type?.toUpperCase()] || { label: leave.type, color: 'secondary', icon: 'ph-calendar' };
   const st = STATUSES[leave.status] || { label: leave.status, color: 'secondary' };
 
-  const canApproveChef = leave.status === 'PENDING_CHEF';
-  const canApproveDRH  = leave.status === 'PENDING_DRH';
-  const canAct         = canApproveChef || canApproveDRH;
+  const canAct        = leave.status === 'PENDING_CHEF' || leave.status === 'PENDING_DRH';
 
-  const handleApproveChef = () => { onApproveChef(leave.id, comment); setComment(''); };
   const handleApproveDRH  = () => { onApproveDRH(leave.id, comment);  setComment(''); };
   const handleReject      = () => {
     if (!rejectMotif.trim()) return;
@@ -60,34 +57,27 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
     {
       label: 'Soumission',
       done: true, pending: false, rejected: false,
-      date: leave.createdAt, by: leave.nom, comment: leave.motif,
+      date: leave.createdAt, by: leave.nom, comment: null,
     },
     {
-      label: 'Validation Chef de service',
-      done: !!leave.validationChef,
-      pending: leave.status === 'PENDING_CHEF',
-      rejected: leave.status === 'REJECTED' && !leave.validationChef,
-      date: leave.validationChef?.date,
-      by: leave.validationChef?.validatedBy,
-      comment: leave.validationChef?.comment,
+      label: 'En attente SG/DRH',
+      done: leave.status === 'APPROVED' || leave.status === 'REJECTED',
+      pending: canAct,
+      rejected: false,
+      date: null, by: null, comment: null,
     },
     {
-      label: 'Validation DRH',
-      done: !!leave.validationDRH,
-      pending: leave.status === 'PENDING_DRH',
-      rejected: leave.status === 'REJECTED' && !!leave.validationChef && !leave.validationDRH,
-      date: leave.validationDRH?.date,
-      by: leave.validationDRH?.validatedBy,
-      comment: leave.validationDRH?.comment,
-    },
-    {
-      label: 'Décision finale',
+      label: 'Décision SG/DRH',
       done: leave.status === 'APPROVED' || leave.status === 'REJECTED',
       pending: false,
       rejected: leave.status === 'REJECTED',
       date: leave.validationDRH?.date || leave.rejection?.date,
-      by: leave.status === 'APPROVED' ? 'Approuvé ✓' : leave.status === 'REJECTED' ? `Rejeté par ${leave.rejection?.rejectedBy}` : null,
-      comment: leave.rejection?.motif || null,
+      by: leave.status === 'APPROVED'
+        ? `Approuvé par ${leave.validationDRH?.validatedBy || 'SG/DRH'}`
+        : leave.status === 'REJECTED'
+        ? `Rejeté par ${leave.rejection?.rejectedBy || 'SG/DRH'}`
+        : null,
+      comment: leave.rejection?.motif || leave.validationDRH?.comment || null,
     },
   ];
 
@@ -105,33 +95,33 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
 
       <Modal.Body>
         {/* ── Informations ── */}
-        <Row className="g-3 mb-4 p-2 bg-light rounded">
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Employé</small>
+        <Row className="g-3 mb-4 p-3 bg-light rounded">
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Employé</small>
             <strong>{leave.nom}</strong>
           </Col>
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Matricule</small>
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Matricule</small>
             <code>{leave.matricule}</code>
           </Col>
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Service</small>
-            {leave.service}
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Service</small>
+            {leave.service || '—'}
           </Col>
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Date de début</small>
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Date de début</small>
             {fmt(leave.dateDebut)}
           </Col>
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Date de fin</small>
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Date de fin</small>
             {fmt(leave.dateFin)}
           </Col>
-          <Col xs={6} md={4}>
-            <small className="text-muted d-block">Durée</small>
+          <Col xs={6} md={4} className="py-1">
+            <small className="text-muted d-block mb-1">Durée</small>
             <strong className="text-primary">{leave.nbJours} jours ouvrables</strong>
           </Col>
-          <Col xs={12}>
-            <small className="text-muted d-block">Motif</small>
+          <Col xs={12} className="py-1">
+            <small className="text-muted d-block mb-1">Motif</small>
             <em>« {leave.motif} »</em>
           </Col>
         </Row>
@@ -245,14 +235,9 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
                 <i className="ph ph-x-circle me-2" />Rejeter
               </Button>
             )}
-            {canApproveChef && (
-              <Button variant="success" size="sm" onClick={handleApproveChef}>
-                <i className="ph ph-check me-2" />Approuver (Chef de service)
-              </Button>
-            )}
-            {canApproveDRH && (
+            {canAct && (
               <Button variant="success" size="sm" onClick={handleApproveDRH}>
-                <i className="ph ph-check-circle me-2" />Approuver (DRH)
+                <i className="ph ph-check-circle me-2" />Approuver (SG/DRH)
               </Button>
             )}
           </>
@@ -263,9 +248,8 @@ export default function LeaveDetail({ leave, onHide, onApproveChef, onApproveDRH
 }
 
 LeaveDetail.propTypes = {
-  leave:          PropTypes.object.isRequired,
-  onHide:         PropTypes.func.isRequired,
-  onApproveChef:  PropTypes.func.isRequired,
-  onApproveDRH:   PropTypes.func.isRequired,
-  onReject:       PropTypes.func.isRequired,
+  leave:         PropTypes.object.isRequired,
+  onHide:        PropTypes.func.isRequired,
+  onApproveDRH:  PropTypes.func.isRequired,
+  onReject:      PropTypes.func.isRequired,
 };
