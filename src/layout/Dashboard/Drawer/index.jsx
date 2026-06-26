@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-// react-bootstrap
-import Image from 'react-bootstrap/Image';
-
-// third-party
-
 // project-imports
 import DrawerContent from './DrawerContent';
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 import { MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
-
-// assets
-import logo from 'assets/images/logo-white.svg';
-import DarkLogo from 'assets/images/logo-dark.svg';
 
 // ==============================|| MAIN LAYOUT - DRAWER ||============================== //
 
@@ -98,8 +89,24 @@ export default function MainDrawer() {
     <nav id="pc-sidebar" className={`pc-sidebar ${drawerOpen ? 'pc-sidebar-hide mob-sidebar-active' : ''} `}>
       <div className="navbar-wrapper">
         <div className="m-header">
-          <a className="b-brand text-primary">
-            <Image src={sidebarTheme === true ? DarkLogo : logo} fluid className="logo logo-lg" alt="logo" />
+          <a className="b-brand" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+              background: 'linear-gradient(135deg, #1DE9B6 0%, #1DC4E9 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <i className="ph ph-buildings" style={{ fontSize: 18, color: '#fff' }} />
+            </div>
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              lineHeight: 1.25,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: sidebarTheme === true ? 'var(--bs-primary)' : '#fff'
+            }}>
+              MINISTÈRE DE<br />COMMUNICATION<br />&amp; MÉDIAS
+            </span>
           </a>
         </div>
 

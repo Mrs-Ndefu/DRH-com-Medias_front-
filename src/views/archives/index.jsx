@@ -14,10 +14,12 @@ import Row         from 'react-bootstrap/Row';
 import Spinner     from 'react-bootstrap/Spinner';
 import Table       from 'react-bootstrap/Table';
 
+import Dropdown from 'react-bootstrap/Dropdown';
 import MainCard from 'components/MainCard';
 import TablePagination from 'components/TablePagination';
-import { fetcher } from 'api/client';
+import { fetcher, api } from 'api/client';
 import { useAuth } from 'contexts/AuthContext';
+import { exportAgentFiche, exportAttestationService } from 'utils/exportAgentPdf';
 
 const PAGE_LIMIT = 15;
 
@@ -164,6 +166,17 @@ function AgentsTab({ isAdmin, showToast }) {
   const [page,      setPage]      = useState(1);
   const [restoring, setRestoring] = useState(null);
   const [confirm,   setConfirm]   = useState(null);
+  const [dlLoading, setDlLoading] = useState(null);
+
+  const handleDownload = async (id, type) => {
+    setDlLoading(`${id}-${type}`);
+    try {
+      const agent = await api.get(`/agents/${id}`);
+      if (type === 'fiche')       exportAgentFiche(agent);
+      if (type === 'attestation') exportAttestationService(agent);
+    } catch { showToast('Erreur lors de la génération du document.', 'danger'); }
+    finally  { setDlLoading(null); }
+  };
 
   const query = new URLSearchParams();
   if (search)    query.set('search',    search);
@@ -221,7 +234,7 @@ function AgentsTab({ isAdmin, showToast }) {
         <Alert variant="danger"><i className="ph ph-warning me-2" />Erreur de chargement.</Alert>
       ) : agents.length === 0 ? (
         <div className="text-center py-5 text-muted">
-          <i className="ph ph-archive f-48 d-block mb-2" />
+          <i className="ph ph-archive f-48 d-block mb-2 text-muted" />
           Aucun agent archivé trouvé.
         </div>
       ) : (
@@ -235,6 +248,7 @@ function AgentsTab({ isAdmin, showToast }) {
               <th>Direction</th>
               <th className="text-center">Situation</th>
               <th className="text-center">Date archivage</th>
+              <th className="text-center">Documents</th>
               {isAdmin && <th className="text-center">Actions</th>}
             </tr>
           </thead>
@@ -252,6 +266,28 @@ function AgentsTab({ isAdmin, showToast }) {
                   <Badge bg={SIT_COLOR[a.situation_admin] || 'secondary'}>{a.situation_admin || '—'}</Badge>
                 </td>
                 <td className="text-center small">{fmt(a.date_archivage)}</td>
+                <td className="text-center">
+                  <Dropdown>
+                    <Dropdown.Toggle
+                      variant="outline-primary" size="sm"
+                      disabled={!!dlLoading?.startsWith(String(a.id))}
+                      title="Télécharger un document officiel"
+                    >
+                      {dlLoading?.startsWith(String(a.id))
+                        ? <Spinner size="sm" animation="border" />
+                        : <><i className="ph ph-download-simple me-1" />PDF</>}
+                    </Dropdown.Toggle>
+                    <Dropdown.Menu align="end">
+                      <Dropdown.Header>Documents officiels</Dropdown.Header>
+                      <Dropdown.Item onClick={() => handleDownload(a.id, 'fiche')}>
+                        <i className="ph ph-identification-card me-2 text-primary" />Fiche individuelle
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => handleDownload(a.id, 'attestation')}>
+                        <i className="ph ph-seal-check me-2 text-success" />Attestation de service
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown>
+                </td>
                 {isAdmin && (
                   <td className="text-center">
                     <Button

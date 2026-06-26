@@ -16,7 +16,7 @@ import Alert from 'react-bootstrap/Alert';
 // project-imports
 import MainCard from 'components/MainCard';
 import TablePagination from 'components/TablePagination';
-import { fetcher } from 'api/client';
+import { fetcher, api } from 'api/client';
 import { SITUATIONS_ADMIN } from './data/agents';
 
 const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
@@ -28,10 +28,6 @@ const STATUS_COLORS = {
   'En activité':        'success',
   'En congé maladie':   'warning',
   'En congé maternité': 'info',
-  'En détachement':     'info',
-  'En disponibilité':   'secondary',
-  'Suspendu':           'danger',
-  'À la retraite':      'dark',
 };
 
 // ==============================|| AGENTS — LISTE ||============================== //
@@ -40,6 +36,8 @@ export default function AgentsList() {
   const [search,     setSearch]     = useState('');
   const [filterStat, setFilterStat] = useState('');
   const [page,       setPage]       = useState(1);
+  const [exporting,  setExporting]  = useState(false);
+  const [archiving,  setArchiving]  = useState(null);
 
   const query = new URLSearchParams();
   if (search)     query.set('search', search);
@@ -47,25 +45,25 @@ export default function AgentsList() {
   query.set('page',  String(page));
   query.set('limit', String(PAGE_LIMIT));
 
-  const { data, error, isLoading } = useSWR(`/agents?${query}`, fetcher);
+  const { data, error, isLoading, mutate } = useSWR(`/agents?${query}`, fetcher);
 
   const agents      = data?.data  || [];
   const total       = data?.total ?? 0;
-  const filtered    = agents;
   const activeCount = agents.filter((a) => a.situation_admin === 'En activité').length;
 
-  // reset to page 1 on filter change
   const handleSearch     = (v) => { setSearch(v);     setPage(1); };
   const handleFilterStat = (v) => { setFilterStat(v); setPage(1); };
-  const [exporting, setExporting] = useState(false);
 
   const handleExportExcel = () => {
     if (!agents.length) return;
     setExporting(true);
-    setTimeout(() => {
-      exportAgentsToExcel(agents);
-      setExporting(false);
-    }, 50);
+    setTimeout(() => { exportAgentsToExcel(agents); setExporting(false); }, 50);
+  };
+
+  const handleArchive = async (id) => {
+    if (!confirm('Archiver cet agent ? Il sera visible dans la Gestion des archives.')) return;
+    setArchiving(id);
+    try { await api.delete(`/agents/${id}`); mutate(); } finally { setArchiving(null); }
   };
 
   return (
@@ -76,23 +74,21 @@ export default function AgentsList() {
             <div className="d-flex align-items-center gap-3">
               <i className="ph ph-users f-24 text-primary" />
               <span>Agents de l'État</span>
-              <Badge bg="primary">{agents.length} agents</Badge>
+              <Badge bg="primary">{total} agent{total > 1 ? 's' : ''}</Badge>
               <Badge bg="success">{activeCount} en activité</Badge>
             </div>
           }
           secondary={
             <div className="d-flex gap-2">
               <Button
-                size="sm"
-                variant="outline-success"
+                size="sm" variant="outline-success"
                 disabled={exporting || !agents.length}
                 onClick={handleExportExcel}
-                title="Exporter la liste au format Excel"
+                title="Exporter au format Excel"
               >
                 {exporting
                   ? <Spinner size="sm" animation="border" className="me-1" />
-                  : <i className="ph ph-file-xls me-1" />
-                }
+                  : <i className="ph ph-file-xls me-1" />}
                 Excel
               </Button>
               <Button as={Link} to="/agents/create" size="sm" variant="primary">
@@ -111,7 +107,7 @@ export default function AgentsList() {
           {error && (
             <Alert variant="danger" className="small py-2">
               <i className="ph ph-warning me-2" />
-              Impossible de contacter le serveur. Vérifiez que le backend est démarré sur le port 5000.
+              Impossible de contacter le serveur. Vérifiez que le backend est démarré sur le port 4000.
             </Alert>
           )}
 
@@ -134,7 +130,7 @@ export default function AgentsList() {
               </Form.Select>
             </Col>
             <Col xs={6} md={2}>
-              <Badge bg="secondary">{filtered.length} résultat{filtered.length > 1 ? 's' : ''}</Badge>
+              <Badge bg="secondary">{agents.length} résultat{agents.length > 1 ? 's' : ''}</Badge>
             </Col>
           </Row>
 
@@ -153,7 +149,7 @@ export default function AgentsList() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {!isLoading && agents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center text-muted py-5">
                     <i className="ph ph-users f-36 d-block mb-2" />
@@ -161,11 +157,9 @@ export default function AgentsList() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((a) => (
+                agents.map((a) => (
                   <tr key={a.id}>
-                    <td>
-                      <code className="text-muted">{a.matricule}</code>
-                    </td>
+                    <td><code className="text-muted">{a.matricule}</code></td>
                     <td>
                       <div className="d-flex align-items-center gap-2">
                         <div
@@ -184,21 +178,17 @@ export default function AgentsList() {
                       </div>
                     </td>
                     <td className="small">{a.poste || '—'}</td>
-                    <td className="small text-muted">
-                      {a.direction_libelle || '—'}
-                    </td>
+                    <td className="small text-muted">{a.direction_libelle || '—'}</td>
                     <td className="small">
                       <div>{a.corps || '—'}</div>
                       {a.categorie && <Badge bg="light" text="dark" className="mt-1">Cat. {a.categorie}</Badge>}
                     </td>
                     <td className="text-center small text-muted">
-                      {a.date_recrutement
-                        ? new Date(a.date_recrutement).getFullYear()
-                        : '—'}
+                      {a.date_recrutement ? new Date(a.date_recrutement).getFullYear() : '—'}
                     </td>
                     <td className="text-center">
                       <Badge bg={STATUS_COLORS[a.situation_admin] || 'secondary'}>
-                        {a.situation_admin}
+                        {a.situation_admin || 'En activité'}
                       </Badge>
                     </td>
                     <td className="text-center">
@@ -208,6 +198,15 @@ export default function AgentsList() {
                         </Button>
                         <Button as={Link} to={`/agents/${a.id}/edit`} variant="outline-secondary" size="sm" title="Modifier">
                           <i className="ph ph-pencil" />
+                        </Button>
+                        <Button
+                          variant="outline-danger" size="sm" title="Archiver l'agent"
+                          disabled={archiving === a.id}
+                          onClick={() => handleArchive(a.id)}
+                        >
+                          {archiving === a.id
+                            ? <Spinner size="sm" animation="border" />
+                            : <i className="ph ph-archive" />}
                         </Button>
                       </div>
                     </td>

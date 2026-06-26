@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable from 'jspdf-autotable'; // eslint-disable-line no-unused-vars
 
 const fmt    = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
 const val    = (v) => (v !== null && v !== undefined && v !== '') ? String(v) : '—';
@@ -252,4 +252,133 @@ export function exportAgentFiche(agent) {
   // ── Téléchargement ────────────────────────────────────────────────────────
   const safeName = `${agent.nom_famille || 'Agent'}_${agent.prenom || ''}_${agent.matricule || ''}`.replace(/\s+/g, '_');
   doc.save(`Fiche_Agent_${safeName}.pdf`);
+}
+
+/**
+ * Génère une Attestation de service pour un agent archivé
+ */
+export function exportAttestationService(agent) {
+  const doc  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const PW   = 210;
+  const M    = 20;
+
+  const fmt2 = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+  const ref  = `MCM/DRH/ATT/${agent.matricule || '000'}/${new Date().getFullYear()}`;
+
+  // ── En-tête République ─────────────────────────────────────────────
+  doc.setFillColor(...COLOR_PRIMARY);
+  doc.rect(0, 0, PW, 26, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('RÉPUBLIQUE DÉMOCRATIQUE DU CONGO', PW / 2, 9, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Justice — Paix — Travail', PW / 2, 15, { align: 'center' });
+  doc.text('Ministère de la Communication et des Médias', PW / 2, 21, { align: 'center' });
+
+  // ── Références ──────────────────────────────────────────────────────
+  doc.setTextColor(...COLOR_MUTED);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Réf. : ${ref}`, M, 34);
+  doc.text(`Fait à Kinshasa, le ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`, PW - M, 34, { align: 'right' });
+
+  // ── Titre ───────────────────────────────────────────────────────────
+  doc.setTextColor(...COLOR_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('ATTESTATION DE SERVICE', PW / 2, 48, { align: 'center' });
+  doc.setDrawColor(...COLOR_PRIMARY);
+  doc.setLineWidth(0.8);
+  doc.line(M + 20, 51, PW - M - 20, 51);
+
+  // ── Corps du texte ──────────────────────────────────────────────────
+  const nomComplet = `${(agent.nom_famille || '').toUpperCase()} ${agent.prenom || ''}`.trim();
+  const direction  = agent.direction_libelle || agent.direction || 'une direction du Ministère';
+  const poste      = agent.poste || agent.grade || 'fonctionnaire';
+  const dateDebut  = fmt2(agent.date_recrutement);
+  const dateFin    = fmt2(agent.updated_at);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(...COLOR_DARK);
+
+  const intro = 'Je soussigné, le Directeur des Ressources Humaines du Ministère de la\nCommunication et des Médias, certifie par la présente que :';
+  const introLines = doc.splitTextToSize(intro, PW - M * 2);
+  doc.text(introLines, M, 62);
+
+  // Bloc agent mis en valeur
+  doc.setFillColor(240, 245, 255);
+  doc.setDrawColor(...COLOR_PRIMARY);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(M, 78, PW - M * 2, 42, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...COLOR_PRIMARY);
+  doc.text(nomComplet, PW / 2, 90, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...COLOR_DARK);
+  doc.text(`Matricule : ${agent.matricule || '—'}`, PW / 2, 98, { align: 'center' });
+  doc.text(`Grade : ${agent.grade || '—'}   —   Catégorie : ${agent.categorie || '—'}`, PW / 2, 105, { align: 'center' });
+  doc.text(`Corps : ${agent.corps || '—'}`, PW / 2, 112, { align: 'center' });
+
+  const corps1 = `a exercé ses fonctions au sein de ${direction} en qualité de ${poste},\ndu ${dateDebut} jusqu'au ${dateFin}.`;
+  const corps1Lines = doc.splitTextToSize(corps1, PW - M * 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(corps1Lines, M, 132);
+
+  const corps2 = `La présente attestation est délivrée à l'intéressé(e) pour servir et valoir ce que de droit.`;
+  const corps2Lines = doc.splitTextToSize(corps2, PW - M * 2);
+  doc.text(corps2Lines, M, 150);
+
+  // ── Signatures ──────────────────────────────────────────────────────
+  const sigY = 195;
+  doc.setDrawColor(...COLOR_BORDER);
+  doc.setLineWidth(0.3);
+
+  // Signature gauche — L'intéressé(e)
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(9);
+  doc.setTextColor(...COLOR_MUTED);
+  doc.text("L'intéressé(e)", M + 25, sigY, { align: 'center' });
+  doc.line(M, sigY + 20, M + 55, sigY + 20);
+  doc.setFontSize(8);
+  doc.text('(Signature)', M + 25, sigY + 25, { align: 'center' });
+
+  // Signature droite — DRH
+  const drhX = PW - M - 55;
+  doc.text('Le Directeur des Ressources Humaines', drhX + 27, sigY, { align: 'center' });
+  doc.line(drhX, sigY + 20, drhX + 55, sigY + 20);
+  doc.setFontSize(8);
+  doc.text('(Nom, Titre et Signature)', drhX + 27, sigY + 25, { align: 'center' });
+
+  // Cachet
+  doc.setDrawColor(...COLOR_PRIMARY);
+  doc.setLineWidth(0.5);
+  doc.circle(PW / 2, sigY + 10, 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...COLOR_PRIMARY);
+  doc.text('MINISTÈRE', PW / 2, sigY + 7, { align: 'center' });
+  doc.text('COMMUNICATION', PW / 2, sigY + 11, { align: 'center' });
+  doc.text('ET MÉDIAS', PW / 2, sigY + 15, { align: 'center' });
+
+  // ── Pied de page ────────────────────────────────────────────────────
+  doc.setFillColor(...COLOR_PRIMARY);
+  doc.rect(0, 287, PW, 10, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(
+    `SIRH — Ministère de la Communication et des Médias   |   Réf. ${ref}   |   Généré le ${new Date().toLocaleString('fr-FR')}`,
+    PW / 2, 293, { align: 'center' }
+  );
+
+  const safeName = `${agent.nom_famille || 'Agent'}_${agent.matricule || ''}`.replace(/\s+/g, '_');
+  doc.save(`Attestation_Service_${safeName}.pdf`);
 }

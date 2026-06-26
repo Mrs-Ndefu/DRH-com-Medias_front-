@@ -38,7 +38,7 @@ export default function LeaveDetail({ leave, onHide, onApproveDRH, onReject }) {
   const [comment,     setComment]     = useState('');
   const [rejectMode,  setRejectMode]  = useState(false);
   const [rejectMotif, setRejectMotif] = useState('');
-  const [rejectBy,    setRejectBy]    = useState('Chef de service');
+  const [rejectBy,    setRejectBy]    = useState('Secrétaire Général');
 
   const lt = LEAVE_TYPES[leave.type?.toUpperCase()] || { label: leave.type, color: 'secondary', icon: 'ph-calendar' };
   const st = STATUSES[leave.status] || { label: leave.status, color: 'secondary' };
@@ -198,7 +198,7 @@ export default function LeaveDetail({ leave, onHide, onApproveDRH, onReject }) {
             <Form.Group className="mb-3">
               <Form.Label className="small">Rejeté par</Form.Label>
               <Form.Select size="sm" value={rejectBy} onChange={(e) => setRejectBy(e.target.value)}>
-                <option>Chef de service</option>
+                <option>Secrétaire Général</option>
                 <option>Directeur RH</option>
                 <option>Direction générale</option>
               </Form.Select>
