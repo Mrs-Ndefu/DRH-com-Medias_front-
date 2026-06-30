@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Connexion automatique...</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#e8f0fe;}
+.box{background:#fff;padding:32px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);text-align:center;}
+</style>
+</head>
+<body>
+<div class="box">
+  <div style="font-size:40px">🔐</div>
+  <h3 style="color:#1a2340;margin:12px 0 4px">Connexion en cours...</h3>
+  <p id="msg" style="color:#666;font-size:14px">Authentification auprès du serveur SIRH</p>
+</div>
+<script>
+fetch('http://localhost:4000/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'admin@ministere.ml', password: 'admin1234' })
+})
+.then(r => r.json())
+.then(data => {
+  if (data.token) {
+    localStorage.setItem('sirh_token', data.token);
+    localStorage.setItem('sirh_user', JSON.stringify(data.user));
+    document.getElementById('msg').textContent = 'Connecté ! Redirection...';
+    window.location.href = '/dashboard';
+  } else {
+    document.getElementById('msg').textContent = 'Erreur : ' + JSON.stringify(data);
+    document.getElementById('msg').style.color = 'red';
+  }
+})
+.catch(e => {
+  document.getElementById('msg').textContent = 'Erreur réseau : ' + e.message;
+  document.getElementById('msg').style.color = 'red';
+});
+</script>
+</body>
+</html>

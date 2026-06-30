@@ -24,9 +24,9 @@ import { fetcher, api } from 'api/client';
 const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:4000';
 
 const NOTIF_ICONS = {
-  CONGE:       { icon: 'ph-calendar-check', color: 'warning' },
-  UTILISATEUR: { icon: 'ph-user-plus',      color: 'primary' },
-  SYSTEM:      { icon: 'ph-info',           color: 'info'    },
+  CONGE:       { icon: 'ph-calendar-check', bg: '#fff3cd', color: '#856404' },
+  UTILISATEUR: { icon: 'ph-user-plus',      bg: '#d1e7dd', color: '#0a6640' },
+  SYSTEM:      { icon: 'ph-info',           bg: '#cff4fc', color: '#0a6880' },
 };
 
 const fmtRelative = (d) => {
@@ -144,55 +144,77 @@ export default function Header() {
                 )}
               </Dropdown.Toggle>
 
-              <Dropdown.Menu className="pc-h-dropdown" style={{ width: 360, maxWidth: '95vw' }}>
+              <Dropdown.Menu className="pc-h-dropdown p-0 overflow-hidden" style={{ width: 380, maxWidth: '95vw', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                 {/* En-tête */}
-                <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-                  <h6 className="mb-0 fw-bold">
-                    <i className="ph ph-bell me-2 text-primary" />
-                    Notifications
-                    {nonLues > 0 && <Badge bg="danger" pill className="ms-2" style={{ fontSize: 10 }}>{nonLues}</Badge>}
-                  </h6>
-                  {nonLues > 0 && (
-                    <button className="btn btn-link btn-sm p-0 text-primary small" onClick={marquerToutLu}>
-                      Tout marquer lu
-                    </button>
-                  )}
+                <div style={{ background: 'linear-gradient(135deg, #1a2340 0%, #243060 100%)', padding: '14px 16px' }}>
+                  <div className="d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-2">
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <i className="ph ph-bell" style={{ color: '#fff', fontSize: 16 }} />
+                      </div>
+                      <div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1 }}>Notifications</div>
+                        <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 2 }}>
+                          {nonLues > 0 ? `${nonLues} non lue${nonLues > 1 ? 's' : ''}` : 'Tout est lu'}
+                        </div>
+                      </div>
+                    </div>
+                    {nonLues > 0 && (
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, border: 'none', borderRadius: 6, padding: '4px 10px' }}
+                        onClick={marquerToutLu}
+                      >
+                        <i className="ph ph-checks me-1" />Tout lire
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Liste */}
-                <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+                <div style={{ maxHeight: 380, overflowY: 'auto', background: '#f8f9fa' }}>
                   {notifications.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                      <i className="ph ph-bell-slash f-32 d-block mb-2" />
-                      <small>Aucune notification</small>
+                    <div className="text-center py-5 text-muted" style={{ background: '#fff' }}>
+                      <i className="ph ph-bell-slash d-block mb-2" style={{ fontSize: 36, color: '#ccc' }} />
+                      <div style={{ fontSize: 13, color: '#999' }}>Aucune notification</div>
                     </div>
                   ) : (
-                    notifications.map((n) => {
+                    notifications.map((n, idx) => {
                       const icon = NOTIF_ICONS[n.type] || NOTIF_ICONS.SYSTEM;
                       return (
                         <div
                           key={n.id}
-                          className={`d-flex gap-3 px-3 py-2 border-bottom ${!n.lu ? 'bg-primary bg-opacity-5' : ''}`}
-                          style={{ cursor: n.lu ? 'default' : 'pointer' }}
+                          style={{
+                            display: 'flex', gap: 12, padding: '12px 16px',
+                            background: !n.lu ? '#fff' : 'transparent',
+                            borderBottom: idx < notifications.length - 1 ? '1px solid #eef0f3' : 'none',
+                            cursor: n.lu ? 'default' : 'pointer',
+                            transition: 'background 0.15s',
+                          }}
                           onClick={() => !n.lu && marquerLu(n.id)}
+                          onMouseEnter={e => { if (!n.lu) e.currentTarget.style.background = '#f0f7ff'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = !n.lu ? '#fff' : 'transparent'; }}
                         >
-                          <div className={`bg-${icon.color} bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0`}
-                            style={{ width: 36, height: 36 }}>
-                            <i className={`ph ${icon.icon} text-${icon.color}`} />
+                          <div style={{
+                            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                            background: icon.bg,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            <i className={`ph ${icon.icon}`} style={{ fontSize: 18, color: icon.color }} />
                           </div>
-                          <div className="flex-grow-1 overflow-hidden">
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div className="d-flex align-items-start justify-content-between gap-1">
-                              <span className={`small ${!n.lu ? 'fw-semibold text-dark' : 'text-muted'}`} style={{ lineHeight: 1.3 }}>
+                              <span style={{ fontSize: 13, fontWeight: !n.lu ? 600 : 400, color: !n.lu ? '#1a2340' : '#6c757d', lineHeight: 1.3 }}>
                                 {n.titre}
                               </span>
-                              {!n.lu && <span className="flex-shrink-0 bg-primary rounded-circle" style={{ width: 7, height: 7, marginTop: 4 }} />}
+                              {!n.lu && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a2340', flexShrink: 0, marginTop: 4 }} />}
                             </div>
-                            <p className="text-muted mb-0" style={{ fontSize: 11, lineHeight: 1.4 }}>
+                            <p style={{ fontSize: 11.5, color: '#6c757d', margin: '3px 0 4px', lineHeight: 1.4 }}>
                               {n.message}
                             </p>
-                            <small className="text-muted" style={{ fontSize: 10 }}>
+                            <div style={{ fontSize: 10.5, color: '#adb5bd' }}>
                               <i className="ph ph-clock me-1" />{fmtRelative(n.created_at)}
-                            </small>
+                            </div>
                           </div>
                         </div>
                       );
@@ -201,8 +223,10 @@ export default function Header() {
                 </div>
 
                 {notifications.length > 0 && (
-                  <div className="text-center py-2 border-top">
-                    <small className="text-muted">{notifications.length} notification{notifications.length > 1 ? 's' : ''} au total</small>
+                  <div style={{ padding: '10px 16px', background: '#fff', borderTop: '1px solid #eef0f3', textAlign: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: '#adb5bd' }}>
+                      {notifications.length} notification{notifications.length > 1 ? 's' : ''} au total
+                    </span>
                   </div>
                 )}
               </Dropdown.Menu>

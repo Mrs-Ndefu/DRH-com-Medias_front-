@@ -77,11 +77,7 @@ export default function AttendancePage() {
           </Nav>
 
           {activeTab === 'scanner' && (
-            <AttendanceScanner
-              agents={agents}
-              todayPresences={todayPresences}
-              onScanDone={handleScanDone}
-            />
+            <AttendanceScanner onScanDone={handleScanDone} todayPresences={todayPresences} />
           )}
           {activeTab === 'list'    && <AttendanceList />}
           {activeTab === 'report'  && <AttendanceReport />}

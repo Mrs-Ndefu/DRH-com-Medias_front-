@@ -1,0 +1,10 @@
+CONFIGURATION MACHINE CLIENTE
+=============================
+1. Installer jre (java),
+2. installer SDK DP_U_ARE_U_SDK_x64.msi,
+3. Installer scan-setup.exe,
+4. Installer navigateur firefox V.56,
+5. drapeau+R (shell:startup) copier / coller (Client_Enrolement_Verification_project_UareU.exe)
+
+
+# REDEMARRER SYSTEME. 

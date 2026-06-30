@@ -1,197 +1,232 @@
 import PropTypes from 'prop-types';
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-// react-bootstrap
-import Alert from 'react-bootstrap/Alert';
-import Badge from 'react-bootstrap/Badge';
-import Button from 'react-bootstrap/Button';
-import Col from 'react-bootstrap/Col';
-import Row from 'react-bootstrap/Row';
+import Alert   from 'react-bootstrap/Alert';
+import Badge   from 'react-bootstrap/Badge';
+import Button  from 'react-bootstrap/Button';
 
-const FINGERS = [
-  { id: 'right-thumb', label: 'Pouce droit',  hand: 'Droite' },
-  { id: 'left-thumb',  label: 'Pouce gauche', hand: 'Gauche' },
+import { useFingerprintBridge } from 'hooks/useFingerprintBridge';
+
+const TOTAL_CAPTURES = 4;
+const STEPS = [
+  { key: 'gauche', label: 'Pouce gauche' },
+  { key: 'droit',  label: 'Pouce droit'  },
 ];
 
-// ==============================|| CAPTURE EMPREINTE DIGITALE (WebAuthn / FIDO2) ||============================== //
+// ==============================|| ENRÔLEMENT — POUCE GAUCHE + POUCE DROIT ||============================== //
 
 export default function FingerprintCapture({ onChange }) {
-  const [captured, setCaptured]   = useState({});
-  const [scanning, setScanning]   = useState(null);
-  const [status, setStatus]       = useState('idle');   // idle | scanning | success | error | unavailable
-  const [message, setMessage]     = useState('');
+  const { status, message, on, send, connect } = useFingerprintBridge();
 
-  const capture = useCallback(async (finger) => {
-    if (captured[finger.id]) return;
+  const [stepIdx,  setStepIdx]  = useState(0);
+  const [fmds,     setFmds]     = useState({});   // { gauche: '...', droit: '...' }
+  const [progress, setProgress] = useState(0);
+  const [running,  setRunning]  = useState(false);
+  const [phase,    setPhase]    = useState('idle');
+  const [phaseMsg, setPhaseMsg] = useState('');
 
-    setScanning(finger.id);
-    setStatus('scanning');
-    setMessage(`Posez votre ${finger.label.toLowerCase()} ${finger.hand.toLowerCase()} sur le lecteur…`);
+  // Refs pour éviter les closures périmées dans les handlers
+  const stepIdxRef = useRef(0);
+  const fmdsRef    = useRef({});
 
-    if (!window.PublicKeyCredential) {
-      setScanning(null);
-      setStatus('unavailable');
-      setMessage("WebAuthn non supporté par ce navigateur. Utilisez un lecteur biométrique compatible FIDO2 / Windows Hello.");
-      return;
-    }
+  const bridgeOk    = status === 'ready' || status === 'open';
+  const bridgeError = status === 'error';
+  const allDone     = !!(fmds.gauche && fmds.droit);
+  const currentStep = STEPS[stepIdx];
 
-    try {
-      const challenge = window.crypto.getRandomValues(new Uint8Array(32));
-      const userId    = window.crypto.getRandomValues(new Uint8Array(16));
+  useEffect(() => {
+    on('ready',    () => {});
+    on('waiting',  (m) => { setPhase('waiting');  setProgress(m.count ?? 0); setPhaseMsg(''); });
+    on('progress', (m) => { setPhase('progress'); setProgress(m.count ?? 0); setPhaseMsg(''); });
+    on('retry',    (m) => { setPhase('retry');    setPhaseMsg(m.message || 'Qualité insuffisante, reposez le doigt'); });
+    on('error',    (m) => { setPhase('error');    setPhaseMsg(m.message || 'Erreur inconnue'); setRunning(false); });
+    on('cancelled',()  => { setPhase('idle');     setRunning(false); setProgress(0); });
 
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge,
-          rp: { name: 'RH Manager – Ministère', id: window.location.hostname },
-          user: {
-            id: userId,
-            name: `emp-${finger.id}-${Date.now()}`,
-            displayName: `${finger.label} ${finger.hand}`
-          },
-          pubKeyCredParams: [
-            { alg: -7,   type: 'public-key' },
-            { alg: -257, type: 'public-key' }
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: 'platform',
-            userVerification: 'required'
-          },
-          timeout: 60000
-        }
-      });
+    on('enrolled', (m) => {
+      const step    = STEPS[stepIdxRef.current];
+      const updated = { ...fmdsRef.current, [step.key]: m.fmd };
+      fmdsRef.current = updated;
+      setFmds(updated);
+      setPhase('enrolled');
+      setRunning(false);
 
-      const updated = {
-        ...captured,
-        [finger.id]: {
-          credentialId: credential.id,
-          capturedAt: new Date().toISOString()
-        }
-      };
-      setCaptured(updated);
-      setScanning(null);
-      setStatus('success');
-      setMessage(`${finger.label} ${finger.hand} enregistré avec succès.`);
-      onChange?.(updated);
-    } catch (err) {
-      setScanning(null);
-      if (err.name === 'NotAllowedError') {
-        setStatus('error');
-        setMessage('Capture annulée ou délai dépassé. Veuillez réessayer.');
-      } else if (err.name === 'NotSupportedError') {
-        setStatus('unavailable');
-        setMessage('Aucun lecteur d\'empreintes détecté. Vérifiez le branchement du périphérique biométrique.');
+      if (stepIdxRef.current < STEPS.length - 1) {
+        // Passer automatiquement à l'étape suivante après 1,5s
+        setTimeout(() => {
+          stepIdxRef.current += 1;
+          setStepIdx(stepIdxRef.current);
+          setPhase('idle');
+          setProgress(0);
+        }, 1500);
       } else {
-        setStatus('error');
-        setMessage(`Erreur de capture : ${err.message}`);
+        // Les deux pouces sont enrôlés
+        onChange?.(updated);
       }
-    }
-  }, [captured, onChange]);
+    });
+  }, [on, onChange]);
 
-  const remove = (fingerId) => {
-    const updated = { ...captured };
-    delete updated[fingerId];
-    setCaptured(updated);
-    onChange?.(updated);
-    setStatus('idle');
-    setMessage('');
-  };
+  const startEnrollment = useCallback(() => {
+    if (running) return;
+    setProgress(0);
+    setPhase('waiting');
+    setPhaseMsg('');
+    setRunning(true);
+    send({ action: 'start_enrollment' });
+  }, [running, send]);
 
-  const capturedCount = Object.keys(captured).length;
-  const allCaptured   = capturedCount === FINGERS.length;
+  const cancel = useCallback(() => {
+    send({ action: 'cancel' });
+    setRunning(false);
+    setPhase('idle');
+    setProgress(0);
+  }, [send]);
+
+  const reset = useCallback(() => {
+    fmdsRef.current  = {};
+    stepIdxRef.current = 0;
+    setFmds({});
+    setStepIdx(0);
+    setPhase('idle');
+    setProgress(0);
+    setRunning(false);
+    onChange?.(null);
+  }, [onChange]);
+
+  const fpColor =
+    phase === 'enrolled' ? '#198754' :
+    phase === 'progress' ? '#0d6efd' :
+    phase === 'waiting'  ? '#0d6efd' :
+    phase === 'retry'    ? '#f0ad4e' :
+    phase === 'error'    ? '#dc3545' :
+    bridgeOk ? '#0d6efd' : '#adb5bd';
 
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between mb-4">
+      {/* En-tête */}
+      <div className="d-flex align-items-center justify-content-between mb-3">
         <div>
-          <h6 className="mb-1">Capture des empreintes digitales</h6>
-          <small className="text-muted">
-            Cliquez sur un pouce pour lancer la capture via le lecteur biométrique (FIDO2 / Windows Hello)
-          </small>
+          <h6 className="mb-1">Enrôlement biométrique</h6>
+          <small className="text-muted">Lecteur DigitalPersona U.are.U — {TOTAL_CAPTURES} poses par pouce</small>
         </div>
-        <Badge bg={allCaptured ? 'success' : 'secondary'} className="fs-6 px-3 py-2">
-          {capturedCount} / 2 pouce{capturedCount > 1 ? 's' : ''}
-        </Badge>
+        {allDone && <Badge bg="success">Complet ✓</Badge>}
       </div>
 
-      <Row className="g-4 mb-4 justify-content-center">
-        {FINGERS.map((finger) => {
-          const isCaptured = !!captured[finger.id];
-          const isScanning = scanning === finger.id;
-          return (
-            <Col key={finger.id} xs={12} sm={6} md={4}>
-              <div className={`border rounded p-4 text-center h-100 ${isCaptured ? 'border-success bg-success bg-opacity-10' : ''}`}>
-                <i
-                  className={`ph ph-fingerprint d-block mb-3 ${isCaptured ? 'text-success' : 'text-secondary'}`}
-                  style={{ fontSize: 56 }}
-                />
-                <p className="fw-semibold mb-3">{finger.label}</p>
+      {/* Pont non disponible */}
+      {bridgeError && (
+        <Alert variant="danger" className="mb-3">
+          <strong>Pont biométrique non disponible.</strong>
+          <div className="small mt-1">{message || 'Lancez fp-bridge.js (port 8091).'}</div>
+          <Button variant="outline-danger" size="sm" className="mt-2" onClick={connect}>
+            <i className="ph ph-arrows-clockwise me-1" />Reconnecter
+          </Button>
+        </Alert>
+      )}
 
-                {isCaptured ? (
-                  <div>
-                    <p className="text-success small mb-2">
-                      <i className="ph ph-check-circle me-1" />Empreinte enregistrée
-                    </p>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => remove(finger.id)}
-                    >
-                      <i className="ph ph-arrow-counter-clockwise me-1" />Recapturer
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant={isScanning ? 'warning' : 'primary'}
-                    size="sm"
-                    onClick={() => capture(finger)}
-                    disabled={!!scanning}
-                  >
-                    {isScanning ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" />
-                        Capture en cours…
-                      </>
-                    ) : (
-                      <>
-                        <i className="ph ph-fingerprint me-2" />Capturer
-                      </>
-                    )}
-                  </Button>
-                )}
+      {/* Indicateur 2 étapes */}
+      <div className="d-flex gap-3 mb-4">
+        {STEPS.map((s, i) => {
+          const done   = !!fmds[s.key];
+          const active = i === stepIdx && !allDone;
+          return (
+            <div
+              key={s.key}
+              className={`flex-fill text-center py-3 rounded border ${
+                done   ? 'border-success bg-success bg-opacity-10' :
+                active ? 'border-primary bg-primary bg-opacity-10' :
+                         'bg-light border-secondary'
+              }`}
+            >
+              <i
+                className="ph ph-fingerprint d-block mb-1"
+                style={{
+                  fontSize: 36,
+                  color: done ? '#198754' : active ? '#0d6efd' : '#adb5bd',
+                }}
+              />
+              <div className={`fw-semibold small ${done ? 'text-success' : active ? 'text-primary' : 'text-muted'}`}>
+                {s.label}
               </div>
-            </Col>
+              <Badge bg={done ? 'success' : active ? 'primary' : 'secondary'} className="mt-1">
+                {done ? '✓ Enrôlé' : active ? 'En cours' : 'En attente'}
+              </Badge>
+            </div>
           );
         })}
-      </Row>
+      </div>
 
-      {status === 'scanning' && (
-        <Alert variant="warning" className="d-flex align-items-center gap-2 mb-0">
-          <span className="spinner-border spinner-border-sm flex-shrink-0" />
-          {message}
+      {/* Zone scanner */}
+      {!allDone && (
+        <div className={`text-center py-4 px-4 border rounded mb-4 ${bridgeOk ? 'border-primary bg-primary bg-opacity-5' : 'bg-light'}`}>
+
+          {/* Progression dots */}
+          {running && (
+            <div className="mb-3 d-flex justify-content-center gap-2">
+              {[...Array(TOTAL_CAPTURES)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`rounded-circle ${
+                    i < progress   ? 'bg-success' :
+                    i === progress ? 'bg-primary' :
+                    'bg-secondary bg-opacity-25'
+                  }`}
+                  style={{ width: 18, height: 18, transition: 'background 0.3s' }}
+                />
+              ))}
+            </div>
+          )}
+
+          <i
+            className="ph ph-fingerprint d-block mb-2"
+            style={{ fontSize: 90, color: fpColor, transition: 'color 0.4s ease' }}
+          />
+
+          <p className="fw-bold mb-2">
+            Étape {stepIdx + 1}/2 — {currentStep.label}
+          </p>
+
+          <div style={{ minHeight: 30 }} className="mb-3 small">
+            {phase === 'idle'     && bridgeOk  && <span className="text-primary">Prêt — cliquez pour démarrer</span>}
+            {phase === 'waiting'  && <span className="text-primary fw-semibold"><span className="spinner-border spinner-border-sm me-1" />Posez le {currentStep.label} ({progress}/{TOTAL_CAPTURES})…</span>}
+            {phase === 'progress' && <span className="text-success fw-semibold"><i className="ph ph-check-circle me-1" />Capture {progress}/{TOTAL_CAPTURES} — reposez le doigt…</span>}
+            {phase === 'retry'    && <span className="text-warning fw-semibold"><i className="ph ph-warning me-1" />{phaseMsg}</span>}
+            {phase === 'enrolled' && <span className="text-success fw-semibold"><i className="ph ph-check-circle me-1" />{currentStep.label} enrôlé !</span>}
+            {phase === 'error'    && <span className="text-danger"><i className="ph ph-warning-circle me-1" />{phaseMsg}</span>}
+          </div>
+
+          {phase !== 'enrolled' ? (
+            <Button
+              variant={running ? 'warning' : 'primary'}
+              onClick={running ? cancel : startEnrollment}
+              disabled={bridgeError || status === 'connecting'}
+            >
+              {running
+                ? <><span className="spinner-border spinner-border-sm me-2" />Annuler</>
+                : <><i className="ph ph-fingerprint me-2" />Enrôler le {currentStep.label}</>
+              }
+            </Button>
+          ) : stepIdx < STEPS.length - 1 ? (
+            <span className="text-muted small fst-italic">Passage au pouce suivant…</span>
+          ) : null}
+        </div>
+      )}
+
+      {/* Succès final */}
+      {allDone && (
+        <Alert variant="success" className="d-flex justify-content-between align-items-center mb-0">
+          <span>
+            <i className="ph ph-check-circle me-2" />
+            <strong>Les deux pouces sont enrôlés.</strong> Ils seront sauvegardés avec le dossier.
+          </span>
+          <Button variant="outline-danger" size="sm" onClick={reset}>
+            <i className="ph ph-arrow-counter-clockwise me-1" />Recommencer
+          </Button>
         </Alert>
       )}
-      {status === 'success' && (
-        <Alert variant="success" className="d-flex align-items-center gap-2 mb-0">
-          <i className="ph ph-check-circle flex-shrink-0" />
-          {message}
-        </Alert>
-      )}
-      {(status === 'error' || status === 'unavailable') && (
-        <Alert variant={status === 'unavailable' ? 'warning' : 'danger'} className="d-flex align-items-center gap-2 mb-0">
-          <i className="ph ph-warning flex-shrink-0" />
-          {message}
-        </Alert>
-      )}
-      {capturedCount === 0 && status === 'idle' && (
-        <Alert variant="info" className="mb-0">
+
+      {phase === 'idle' && !allDone && bridgeOk && (
+        <Alert variant="info" className="mb-0 mt-3">
           <i className="ph ph-info me-2" />
-          Les deux pouces sont requis pour l'identification biométrique de l'employé.
-        </Alert>
-      )}
-      {allCaptured && (
-        <Alert variant="success" className="mb-0">
-          <i className="ph ph-check-circle me-2" />
-          Les deux empreintes ont été capturées avec succès.
+          Posez le <strong>même doigt</strong> {TOTAL_CAPTURES} fois de suite pour chaque pouce.
         </Alert>
       )}
     </div>

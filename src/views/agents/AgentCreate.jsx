@@ -172,6 +172,13 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
           { method: 'PATCH', headers: { Authorization: `Bearer ${token}` }, body: fd }
         ).catch(() => {});
       }
+      // Sauvegarder les deux pouces
+      if (empreintes && savedId && (empreintes.gauche || empreintes.droit)) {
+        await api.put(`/agents/${savedId}/fingerprint`, {
+          fmd_gauche: empreintes.gauche || undefined,
+          fmd_droit:  empreintes.droit  || undefined,
+        }).catch(() => {});
+      }
       setSubmitted(true);
     } catch (err) {
       setSaveError(err.message || 'Erreur lors de l\'enregistrement.');
@@ -553,7 +560,7 @@ export default function AgentCreate({ agentData = null, agentId = null }) {
     <>
       <Alert variant="info" className="mb-4">
         <i className="ph ph-info me-2" />
-        Capture des <strong>pouces droit et gauche</strong> via le lecteur biométrique.
+        Enrôlement biométrique via le lecteur <strong>DigitalPersona U.are.U</strong>. Le pont fingerprint doit être actif (fp-bridge.js).
       </Alert>
       <FingerprintCapture onChange={setEmpreintes} />
     </>

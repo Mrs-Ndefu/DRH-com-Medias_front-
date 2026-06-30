@@ -38,7 +38,7 @@ export let ThemeDirection;
 
 const config = {
   fontFamily: `'Public Sans', sans-serif`,
-  i18n: 'en',
+  i18n: 'fr',
   menuOrientation: MenuOrientation.VERTICAL,
   container: false,
   mode: ThemeMode.LIGHT,
